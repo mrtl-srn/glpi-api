@@ -1,0 +1,112 @@
+import type { IHttpClient } from '../../http/types.js';
+import { ResourceService } from '../ResourceService.js';
+import type { RouteRegistry } from '../RouteRegistry.js';
+import type { CreateResult, RequestOptions } from '../types.js';
+import type {
+  GlpiTicket,
+  TicketActorType,
+  TicketTimelineItem,
+} from '../../types/models.js';
+
+/**
+ * Specialized resource service for GLPI Tickets (/Assistance/Ticket).
+ * Provides domain helper methods for managing followups, timelines, and actor assignments.
+ */
+export class TicketResource extends ResourceService<GlpiTicket> {
+  /**
+   * Initializes a new TicketResource instance.
+   *
+   * @param http The HTTP client to use for network transport.
+   * @param endpoint The route path or registered alias (defaults to 'Assistance/Ticket').
+   * @param registry Optional RouteRegistry for custom alias resolution.
+   */
+  constructor(
+    http: IHttpClient,
+    endpoint: string = 'Assistance/Ticket',
+    registry?: RouteRegistry
+  ) {
+    super(http, endpoint, registry);
+  }
+
+  /**
+   * Adds a new followup note to an existing ticket.
+   *
+   * @param ticketId The ID of the ticket.
+   * @param content Plain text message string or a full followup payload object.
+   * @param options Optional request options including entity/profile scoping.
+   * @returns Creation result containing the new followup ID and URL.
+   */
+  async addFollowup(
+    ticketId: number | string,
+    content: string | Record<string, unknown>,
+    options?: RequestOptions
+  ): Promise<CreateResult> {
+    const body = typeof content === 'string' ? { content } : content;
+    const headers = this.buildHeaders(options);
+
+    const response = await this.http.request<CreateResult>({
+      method: 'POST',
+      path: `${this.basePath}/${ticketId}/Followup`,
+      body,
+      headers,
+      signal: options?.signal,
+    });
+
+    return response.data;
+  }
+
+  /**
+   * Retrieves the complete timeline for a ticket, including followups, tasks, solutions, and validations.
+   *
+   * @param ticketId The ID of the ticket.
+   * @param options Optional request options including entity/profile scoping.
+   * @returns Array of timeline items.
+   */
+  async getTimeline(
+    ticketId: number | string,
+    options?: RequestOptions
+  ): Promise<TicketTimelineItem[]> {
+    const headers = this.buildHeaders(options);
+
+    const response = await this.http.request<TicketTimelineItem[]>({
+      method: 'GET',
+      path: `${this.basePath}/${ticketId}/Timeline`,
+      headers,
+      signal: options?.signal,
+    });
+
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  /**
+   * Assigns an actor (user, group, or supplier) to a ticket.
+   *
+   * @param ticketId The ID of the ticket.
+   * @param actorId The identifier of the user, group, or supplier.
+   * @param type The type of the actor: 'user', 'group', or 'supplier' (defaults to 'user').
+   * @param options Optional request options including entity/profile scoping.
+   * @returns Creation result containing the new actor assignment ID and URL.
+   */
+  async assign(
+    ticketId: number | string,
+    actorId: number | string,
+    type: TicketActorType = 'user',
+    options?: RequestOptions
+  ): Promise<CreateResult> {
+    const headers = this.buildHeaders(options);
+
+    const response = await this.http.request<CreateResult>({
+      method: 'POST',
+      path: `${this.basePath}/${ticketId}/Actor`,
+      body: {
+        id: actorId,
+        type,
+        role: 'assigned',
+      },
+      headers,
+      signal: options?.signal,
+    });
+
+    return response.data;
+  }
+}
