@@ -1,15 +1,30 @@
 {
   "name": "glpi-api",
-  "version": "1.6.1",
+  "version": "2.0.0",
   "description": "Node module for GLPI REST API",
-  "main": "glpi.js",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
   "author": "Martial Séron <martial.seron@alturing.eu>",
   "license": "MIT",
   "scripts": {
-    "docs": "jsdoc --configure .jsdoc.json -R README.md --verbose",
-    "test": "nyc --reporter=html --reporter=text mocha",
-    "coverage": "nyc --reporter=text-lcov --reporter=text mocha",
-    "report-coverage": "nyc report --reporter=text-lcov > coverage.lcov && codecov"
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "repository": {
     "type": "git",
@@ -19,33 +34,10 @@
     "url": "https://github.com/MartialSeron/glpi-api/issues"
   },
   "homepage": "https://github.com/MartialSeron/glpi-api#readme",
-  "nyc": {
-    "extension": [
-      ".js"
-    ],
-    "exclude": [
-      ".nyc_output",
-      "coverage",
-      "docs",
-      "node_modules",
-      "test"
-    ]
-  },
-  "dependencies": {
-    "debug": "^4.3.1",
-    "lodash": "^4.17.20",
-    "qs": "^6.9.6",
-    "request": "^2.88.2",
-    "request-promise-native": "^1.0.9"
-  },
   "devDependencies": {
-    "chai": "^4.2.0",
-    "codecov": "^3.8.1",
-    "docdash": "^0.4.0",
-    "eslint": "^4.18.1",
-    "jsdoc": "^3.6.3",
-    "mocha": "^8.2.1",
-    "nock": "^13.0.6",
-    "nyc": "^15.1.0"
+    "@types/node": "^22.7.5",
+    "tsup": "^8.3.5",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.3"
   }
 }
