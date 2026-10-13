@@ -26,5 +26,6 @@ export type {
   DocumentDownloadResult,
   TicketActorType,
   TicketActorRole,
+  PriorityLevel,
 } from '../types/models.js';
 export { TicketStatus, TicketType } from '../types/models.js';

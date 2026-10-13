@@ -216,8 +216,39 @@ describe('Domain Resource Services', () => {
     const docs = new DocumentResource(mockHttp);
     const file = await docs.download(77);
 
+    expect(mockHttp.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'GET',
+        path: '/Management/Document/77/Download',
+        rawResponse: true,
+      })
+    );
     expect(file.contentType).toBe('application/pdf');
     expect(file.filename).toBe('report.pdf');
+    expect(file.data).toBeDefined();
+    expect(new Uint8Array(file.data)).toEqual(rawData);
+  });
+
+  it('DocumentResource_download_handles_response_instance_and_rfc5987_with_lang', async () => {
+    const rawData = new Uint8Array([10, 20, 30, 40]);
+    const mockNativeResponse = new Response(rawData, {
+      headers: {
+        'content-type': 'application/octet-stream',
+        'content-disposition': "attachment; filename*=UTF-8'en'%E6%96%87%E6%9B%B8.dat",
+      },
+    });
+
+    (mockHttp.request as any).mockResolvedValueOnce({
+      status: 200,
+      headers: mockNativeResponse.headers,
+      data: mockNativeResponse,
+    });
+
+    const docs = new DocumentResource(mockHttp);
+    const file = await docs.download(88);
+
+    expect(file.contentType).toBe('application/octet-stream');
+    expect(file.filename).toBe('文書.dat');
     expect(file.data).toBeDefined();
     expect(new Uint8Array(file.data)).toEqual(rawData);
   });
@@ -234,7 +265,7 @@ describe('Domain Resource Services', () => {
     });
 
     const docs = new DocumentResource(mockHttp);
-    const file = await docs.download(88);
+    const file = await docs.download(89);
 
     expect(file.contentType).toBe('image/png');
     expect(file.filename).toBe('my diagram.png');

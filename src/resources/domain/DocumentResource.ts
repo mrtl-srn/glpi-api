@@ -1,3 +1,4 @@
+import { GlpiError } from '../../errors/index.js';
 import type { IHttpClient } from '../../http/types.js';
 import { ResourceService } from '../ResourceService.js';
 import type { RouteRegistry } from '../RouteRegistry.js';
@@ -37,10 +38,14 @@ function parseContentDispositionFilename(headerValue?: string): string | undefin
   if (!headerValue) return undefined;
 
   // RFC 5987 / RFC 6266: filename*=charset'lang'encoded_value
-  const rfc5987Match = headerValue.match(/filename\*\s*=\s*(?:[A-Za-z0-9_-]+)''([^;]+)/i);
+  const rfc5987Match = headerValue.match(/filename\*\s*=\s*(?:[A-Za-z0-9_-]+)'[A-Za-z0-9_-]*'([^;]+)/i);
   if (rfc5987Match?.[1]) {
     try {
-      return decodeURIComponent(rfc5987Match[1].trim());
+      let val = rfc5987Match[1].trim();
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      return decodeURIComponent(val);
     } catch {
       return rfc5987Match[1].trim();
     }
@@ -171,11 +176,12 @@ export class DocumentResource extends ResourceService<GlpiDocument> {
   ): Promise<DocumentDownloadResult> {
     const headers = this.buildHeaders(options);
 
-    const response = await this.http.request<ArrayBuffer | Response | Blob | Uint8Array>({
+    const response = await this.http.request<ArrayBuffer | Response | Blob | Uint8Array | string>({
       method: 'GET',
       path: `${this.basePath}/${id}/Download`,
       headers,
       signal: options?.signal,
+      rawResponse: true,
     });
 
     let arrayBuffer: ArrayBuffer;
@@ -192,8 +198,11 @@ export class DocumentResource extends ResourceService<GlpiDocument> {
       arrayBuffer = await (resData as Response).arrayBuffer();
     } else if (resData && typeof (resData as Blob).arrayBuffer === 'function') {
       arrayBuffer = await (resData as Blob).arrayBuffer();
+    } else if (typeof resData === 'string') {
+      const encoded = new TextEncoder().encode(resData);
+      arrayBuffer = encoded.buffer.slice(encoded.byteOffset, encoded.byteOffset + encoded.byteLength);
     } else {
-      arrayBuffer = resData as unknown as ArrayBuffer;
+      throw new GlpiError('Unexpected binary response format in document download');
     }
 
     const contentType = getHeaderValue(response.headers, 'content-type');

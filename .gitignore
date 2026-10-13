@@ -3,3 +3,6 @@ coverage
 coverage.lcov
 yarn-error.log
 tmp
+.agents
+dist
+.superpowers
