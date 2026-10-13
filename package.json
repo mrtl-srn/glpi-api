@@ -18,6 +18,9 @@
       }
     }
   },
+  "files": [
+    "dist"
+  ],
   "author": "Martial Séron <martial.seron@alturing.eu>",
   "license": "MIT",
   "scripts": {
