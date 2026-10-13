@@ -194,18 +194,33 @@ export class RsqlBuilder {
     return this.append(groupStr);
   }
 
+  private isEnclosedInParens(str: string): boolean {
+    if (!str.startsWith('(') || !str.endsWith(')')) {
+      return false;
+    }
+    let depth = 0;
+    for (let i = 0; i < str.length - 1; i++) {
+      if (str[i] === '(') depth++;
+      else if (str[i] === ')') depth--;
+      if (depth <= 0) return false;
+    }
+    return depth === 1;
+  }
+
   private resolveNested(nested: RsqlNested): string {
     let str: string;
     if (typeof nested === 'function') {
       const sub = nested(new RsqlBuilder());
-      str = sub instanceof RsqlBuilder ? sub.build() : String(sub);
+      str = sub instanceof RsqlBuilder ? sub.build() : sub !== undefined && sub !== null ? String(sub) : '';
     } else if (nested instanceof RsqlBuilder) {
       str = nested.build();
-    } else {
+    } else if (nested !== undefined && nested !== null) {
       str = String(nested).trim();
+    } else {
+      str = '';
     }
     if (!str) return '';
-    if (str.startsWith('(') && str.endsWith(')')) {
+    if (this.isEnclosedInParens(str)) {
       return str;
     }
     return `(${str})`;

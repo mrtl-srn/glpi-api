@@ -107,4 +107,22 @@ describe('RSQL Query Builder', () => {
     expect(escapeValue('foo"bar')).toBe('"foo\\"bar"');
     expect(escapeValue('back\\slash')).toBe('"back\\\\slash"');
   });
+
+  it('correctly balances parentheses on multi-clause nested string', () => {
+    // Multi-clause subquery '(a==1),(b==2)' must be wrapped to retain precedence
+    const res = rsql().eq('x', 1).and('(a==1),(b==2)').build();
+    expect(res).toBe('x==1;((a==1),(b==2))');
+
+    // Already fully enclosed single group is preserved
+    const preserved = rsql().eq('x', 1).and('((a==1),(b==2))').build();
+    expect(preserved).toBe('x==1;((a==1),(b==2))');
+  });
+
+  it('handles callback with void return gracefully', () => {
+    const res = rsql()
+      .eq('x', 1)
+      .and((() => {}) as any)
+      .build();
+    expect(res).toBe('x==1');
+  });
 });
