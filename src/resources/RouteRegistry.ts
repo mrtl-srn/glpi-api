@@ -62,12 +62,12 @@ export class RouteRegistry {
    * @returns Resolved GLPI path.
    */
   resolve(input: string): string {
-    if (this.routes.has(input)) {
-      return this.routes.get(input)!;
-    }
-    const trimmed = input.startsWith('/') ? input.slice(1) : input;
+    const trimmed = input.replace(/^\/+|\/+$/g, '');
     if (this.routes.has(trimmed)) {
       return this.routes.get(trimmed)!;
+    }
+    if (this.routes.has(input)) {
+      return this.routes.get(input)!;
     }
     return input;
   }

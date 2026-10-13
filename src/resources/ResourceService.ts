@@ -1,3 +1,4 @@
+import { GlpiError } from '../errors/index.js';
 import type { IHttpClient } from '../http/types.js';
 import { RouteRegistry } from './RouteRegistry.js';
 import type {
@@ -85,7 +86,9 @@ export class ResourceService<T = unknown> implements IResourceService<T> {
       queryParams.filter =
         typeof params.filter === 'string'
           ? params.filter
-          : (params.filter as { build(): string }).build();
+          : typeof (params.filter as any)?.build === 'function'
+            ? (params.filter as { build(): string }).build()
+            : String(params.filter);
     }
     if (params?.start !== undefined) {
       queryParams.start = params.start;
@@ -171,6 +174,7 @@ export class ResourceService<T = unknown> implements IResourceService<T> {
    * Creates a new entity. If options.fetch is true, retrieves and returns the full entity.
    */
   create(data: Partial<T>, options: CreateOptions & { fetch: true }): Promise<T>;
+  create(data: Partial<T>, options?: CreateOptions & { fetch?: false }): Promise<CreateResult>;
   create(data: Partial<T>, options?: CreateOptions): Promise<CreateResult | T>;
   async create(data: Partial<T>, options?: CreateOptions): Promise<CreateResult | T> {
     const headers = this.buildHeaders(options);
@@ -182,7 +186,7 @@ export class ResourceService<T = unknown> implements IResourceService<T> {
       signal: options?.signal,
     });
 
-    if (options?.fetch && response.data) {
+    if (options?.fetch) {
       let createdId: number | string | undefined;
       const dataObj = response.data as unknown;
       if (typeof dataObj === 'object' && dataObj !== null) {
@@ -196,6 +200,7 @@ export class ResourceService<T = unknown> implements IResourceService<T> {
       if (createdId !== undefined) {
         return this.get(createdId, options);
       }
+      throw new GlpiError('Cannot fetch created entity: server response did not contain an id');
     }
 
     return response.data;

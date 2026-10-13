@@ -287,4 +287,23 @@ describe('Resource Service & Route Registry', () => {
     expect(reg.has('Rack')).toBe(false);
     expect(reg.resolve('Rack')).toBe('Rack');
   });
+
+  it('RouteRegistry.resolve trims leading and trailing slashes for alias matching', () => {
+    const reg = new RouteRegistry();
+    expect(reg.resolve('/Ticket/')).toBe('Assistance/Ticket');
+    expect(reg.resolve('Ticket/')).toBe('Assistance/Ticket');
+    expect(reg.resolve('/Ticket')).toBe('Assistance/Ticket');
+  });
+
+  it('create with fetch: true throws GlpiError when response lacks id', async () => {
+    (mockHttp.request as any).mockResolvedValueOnce({
+      status: 201,
+      data: { message: 'Created without id' },
+    });
+
+    const service = new ResourceService<TestItem>(mockHttp, 'Assistance/Ticket');
+    await expect(service.create({ name: 'Test' }, { fetch: true })).rejects.toThrow(
+      'Cannot fetch created entity: server response did not contain an id'
+    );
+  });
 });

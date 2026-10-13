@@ -168,6 +168,8 @@ export interface IResourceService<T> {
   /**
    * Creates a new entity. If options.fetch is true, returns the fully populated entity T.
    */
+  create(data: Partial<T>, options: CreateOptions & { fetch: true }): Promise<T>;
+  create(data: Partial<T>, options?: CreateOptions & { fetch?: false }): Promise<CreateResult>;
   create(data: Partial<T>, options?: CreateOptions): Promise<CreateResult | T>;
 
   /**
