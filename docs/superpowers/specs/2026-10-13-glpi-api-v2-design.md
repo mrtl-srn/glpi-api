@@ -83,6 +83,11 @@ The goal of this project is a complete rewrite to version 2.0:
 - Default implementation `FetchHttpClient` utilizes standard global `fetch`.
 - Supports request and response interceptors (used by the auth provider to inject `Authorization: Bearer <token>` and intercept `401 Unauthorized` for automatic token refresh).
 - Exposes configurable timeout and base URL handling.
+- **Proxy Support:**
+  - Configurable via `proxy?: string | ProxyOptions` on `GlpiClient` and `FetchHttpClient` (e.g. `'http://proxy.corp.com:8080'` or `{ url: '...', auth: { username, password } }`).
+  - Native `fetch` proxying implemented cleanly via `undici.ProxyAgent` dispatcher in Node.js environments.
+  - Optional `useEnvProxy?: boolean` to automatically respect standard environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`).
+  - Pluggable `dispatcher` or custom `fetch` function for advanced enterprise proxy routing or custom TLS/CA bundles.
 - **Session Scoping Headers:** Supports default and per-request headers for GLPI v2 context:
   - `GLPI-Entity`: Target entity ID.
   - `GLPI-Profile`: Target profile ID.
