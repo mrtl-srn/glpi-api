@@ -119,13 +119,14 @@ export class TokenManager {
    */
   async getStoredToken(): Promise<TokenData | null> {
     if (this.cachedToken) {
-      return this.cachedToken;
+      return { ...this.cachedToken };
     }
     const stored = await this.storage.getToken();
     if (stored) {
       this.cachedToken = stored;
+      return { ...stored };
     }
-    return stored;
+    return null;
   }
 
   /**

@@ -7,7 +7,7 @@ import {
   TokenManager,
 } from '../src/auth/index.js';
 import { IHttpClient, HttpResponse } from '../src/http/types.js';
-import { GlpiAuthenticationError } from '../src/errors/index.js';
+import { GlpiAuthenticationError, GlpiHttpError } from '../src/errors/index.js';
 
 describe('Auth Layer', () => {
   let mockHttp: IHttpClient;
@@ -358,6 +358,37 @@ describe('Auth Layer', () => {
       await expect(provider.getAccessToken()).rejects.toThrow(GlpiAuthenticationError);
     });
 
+    it('translates GlpiHttpError 400 with oauth payload to GlpiAuthenticationError', async () => {
+      (mockHttp.request as any).mockRejectedValueOnce(
+        new GlpiHttpError(400, 'Bad Request', '/token', {
+          error: 'invalid_grant',
+          error_description: 'Bad credentials',
+        })
+      );
+
+      const provider = new PasswordAuthProvider({
+        httpClient: mockHttp,
+        username: 'user',
+        password: 'wrong-password',
+      });
+
+      await expect(provider.getAccessToken()).rejects.toThrow(GlpiAuthenticationError);
+      try {
+        (mockHttp.request as any).mockRejectedValueOnce(
+          new GlpiHttpError(400, 'Bad Request', '/token', {
+            error: 'invalid_grant',
+            error_description: 'Bad credentials',
+          })
+        );
+        await provider.getAccessToken();
+      } catch (err) {
+        expect(err).toBeInstanceOf(GlpiAuthenticationError);
+        const authErr = err as GlpiAuthenticationError;
+        expect(authErr.error).toBe('invalid_grant');
+        expect(authErr.errorDescription).toBe('Bad credentials');
+      }
+    });
+
     it('logout clears stored token', async () => {
       (mockHttp.request as any)
         .mockResolvedValueOnce({
@@ -379,6 +410,26 @@ describe('Auth Layer', () => {
       await provider.logout();
       // After logout, token must be re-fetched with credentials
       expect(await provider.getAccessToken()).toBe('tok-2');
+    });
+
+    it('TokenManager getStoredToken returns a cloned object to prevent cache mutation', async () => {
+      const storage = new InMemoryTokenStorage();
+      const manager = new TokenManager(storage, async () => ({
+        accessToken: 'orig-token',
+        expiresIn: 3600,
+      }));
+
+      await manager.getToken();
+      const stored = await manager.getStoredToken();
+      expect(stored?.accessToken).toBe('orig-token');
+
+      // Mutate returned object
+      if (stored) {
+        stored.accessToken = 'mutated';
+      }
+
+      const storedAgain = await manager.getStoredToken();
+      expect(storedAgain?.accessToken).toBe('orig-token');
     });
   });
 });

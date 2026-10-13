@@ -1,7 +1,8 @@
-import { GlpiAuthenticationError, GlpiHttpError } from '../errors/index.js';
+import { GlpiAuthenticationError } from '../errors/index.js';
 import type { IHttpClient } from '../http/types.js';
 import { InMemoryTokenStorage } from './storage.js';
 import { TokenManager } from './TokenManager.js';
+import { mapOAuthHttpError } from './utils.js';
 import type {
   AuthCodeOptions,
   IAuthProvider,
@@ -92,11 +93,11 @@ export class AuthorizationCodeAuthProvider implements IAuthProvider {
     }
 
     const data = await this.postToken(body);
-    const accessToken = data.access_token ?? data.accessToken;
-    if (!accessToken) {
+    const accessToken = data?.access_token ?? data?.accessToken;
+    if (!data || !accessToken) {
       throw new GlpiAuthenticationError(
-        data.error,
-        data.error_description,
+        data?.error,
+        data?.error_description,
         'Token refresh failed: response missing access_token'
       );
     }
@@ -133,11 +134,11 @@ export class AuthorizationCodeAuthProvider implements IAuthProvider {
     }
 
     const data = await this.postToken(body);
-    const accessToken = data.access_token ?? data.accessToken;
-    if (!accessToken) {
+    const accessToken = data?.access_token ?? data?.accessToken;
+    if (!data || !accessToken) {
       throw new GlpiAuthenticationError(
-        data.error,
-        data.error_description,
+        data?.error,
+        data?.error_description,
         'Authorization code exchange failed: response missing access_token'
       );
     }
@@ -166,23 +167,7 @@ export class AuthorizationCodeAuthProvider implements IAuthProvider {
 
       return response.data;
     } catch (err) {
-      if (err instanceof GlpiAuthenticationError) {
-        throw err;
-      }
-      if (err instanceof GlpiHttpError) {
-        const bodyObj = (err.body && typeof err.body === 'object'
-          ? err.body
-          : undefined) as Record<string, unknown> | undefined;
-        const oauthError = typeof bodyObj?.error === 'string' ? bodyObj.error : undefined;
-        const errorDesc =
-          typeof bodyObj?.error_description === 'string'
-            ? bodyObj.error_description
-            : typeof bodyObj?.message === 'string'
-              ? bodyObj.message
-              : err.message;
-        throw new GlpiAuthenticationError(oauthError, errorDesc, errorDesc);
-      }
-      throw err;
+      mapOAuthHttpError(err, 'Authorization code token request failed');
     }
   }
 }

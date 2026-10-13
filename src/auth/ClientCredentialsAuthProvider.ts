@@ -1,7 +1,8 @@
-import { GlpiAuthenticationError, GlpiHttpError } from '../errors/index.js';
+import { GlpiAuthenticationError } from '../errors/index.js';
 import type { IHttpClient } from '../http/types.js';
 import { InMemoryTokenStorage } from './storage.js';
 import { TokenManager } from './TokenManager.js';
+import { mapOAuthHttpError } from './utils.js';
 import type {
   ClientCredentialsOptions,
   IAuthProvider,
@@ -83,23 +84,7 @@ export class ClientCredentialsAuthProvider implements IAuthProvider {
         scope: data.scope,
       };
     } catch (err) {
-      if (err instanceof GlpiAuthenticationError) {
-        throw err;
-      }
-      if (err instanceof GlpiHttpError) {
-        const bodyObj = (err.body && typeof err.body === 'object'
-          ? err.body
-          : undefined) as Record<string, unknown> | undefined;
-        const oauthError = typeof bodyObj?.error === 'string' ? bodyObj.error : undefined;
-        const errorDesc =
-          typeof bodyObj?.error_description === 'string'
-            ? bodyObj.error_description
-            : typeof bodyObj?.message === 'string'
-              ? bodyObj.message
-              : err.message;
-        throw new GlpiAuthenticationError(oauthError, errorDesc, errorDesc);
-      }
-      throw err;
+      mapOAuthHttpError(err, 'Client credentials authentication failed');
     }
   }
 }
