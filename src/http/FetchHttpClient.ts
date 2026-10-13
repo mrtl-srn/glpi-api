@@ -168,7 +168,7 @@ export class FetchHttpClient implements IHttpClient {
 
       responsePromise = responsePromise.then(
         onFulfilled ? ((res) => onFulfilled(res)) as (value: HttpResponse<T>) => HttpResponse<T> | Promise<HttpResponse<T>> : undefined,
-        onRejected ? ((err) => onRejected(err)) as (reason: unknown) => HttpResponse<T> | Promise<HttpResponse<T>> : undefined
+        onRejected ? ((err) => onRejected(err, currentOptions)) as (reason: unknown) => HttpResponse<T> | Promise<HttpResponse<T>> : undefined
       ) as Promise<HttpResponse<T>>;
     }
 
@@ -334,25 +334,22 @@ export class FetchHttpClient implements IHttpClient {
         message = errorBody;
       }
 
+      let errorToThrow: GlpiHttpError;
       if (response.status === 404) {
-        throw new GlpiNotFoundError(finalUrl, errorBody, message);
-      }
-
-      if (response.status === 429) {
+        errorToThrow = new GlpiNotFoundError(finalUrl, errorBody, message);
+      } else if (response.status === 429) {
         const retryAfterHeader = response.headers.get('retry-after');
         const retryAfterNum = retryAfterHeader !== null ? Number(retryAfterHeader) : undefined;
         const retryAfter =
           retryAfterNum !== undefined && Number.isFinite(retryAfterNum) ? retryAfterNum : undefined;
-        throw new GlpiRateLimitError(finalUrl, retryAfter, errorBody, message);
-      }
-
-      if (response.status === 400 || response.status === 422) {
+        errorToThrow = new GlpiRateLimitError(finalUrl, retryAfter, errorBody, message);
+      } else if (response.status === 400 || response.status === 422) {
         let errors: Record<string, string[]> | unknown = undefined;
         if (typeof errorBody === 'object' && errorBody !== null) {
           const errObj = errorBody as Record<string, unknown>;
           errors = errObj.fields ?? errObj.errors ?? errorBody;
         }
-        throw new GlpiValidationError(
+        errorToThrow = new GlpiValidationError(
           finalUrl,
           errors,
           response.status,
@@ -360,9 +357,12 @@ export class FetchHttpClient implements IHttpClient {
           errorBody,
           message
         );
+      } else {
+        errorToThrow = new GlpiHttpError(response.status, response.statusText, finalUrl, errorBody, message);
       }
 
-      throw new GlpiHttpError(response.status, response.statusText, finalUrl, errorBody, message);
+      (errorToThrow as any).options = options;
+      throw errorToThrow;
     }
 
     let data: T;

@@ -58,7 +58,7 @@ export type ResponseInterceptorFn<T = any> = (
 
 export interface ResponseInterceptorObj<T = any> {
   onFulfilled?: ResponseInterceptorFn<T>;
-  onRejected?: (error: unknown) => unknown | Promise<unknown>;
+  onRejected?: (error: unknown, options?: HttpRequestOptions) => unknown | Promise<unknown>;
 }
 
 export type ResponseInterceptor<T = any> = ResponseInterceptorFn<T> | ResponseInterceptorObj<T>;
