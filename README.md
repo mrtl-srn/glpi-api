@@ -339,11 +339,8 @@ await client.tickets.update(1042, {
   status: 2, // In progress
 });
 
-// Add an actor (requester, technician, or observer)
-await client.tickets.addActor(1042, {
-  users_id: 15,
-  type: 1, // Requester
-});
+// Assign an actor (technician, group, or supplier)
+await client.tickets.assign(1042, 15, 'user');
 
 // Retrieve ticket timeline (followups, tasks, solutions)
 const timeline = await client.tickets.getTimeline(1042);
@@ -360,8 +357,8 @@ const computers = await client.computers.list({
   filter: rsql().like('name', 'SRV-%'),
 });
 
-// Fetch hardware inventory sub-items
-const inventory = await client.computers.getInventory(42);
+// Fetch computer by ID
+const computer = await client.computers.get(42);
 ```
 
 ### Users (`client.users`)
@@ -503,10 +500,9 @@ Pass scoping overrides in the `options` argument of any resource method:
 ```typescript
 const ticketsInSubEntity = await client.tickets.list({
   filter: rsql().eq('status', 1),
-}, {
-  entityId: 5,
-  recursiveEntity: false,
-  profileId: 2,
+  entity: 5,
+  recursive: false,
+  profile: 2,
   language: 'en_GB',
 });
 ```
