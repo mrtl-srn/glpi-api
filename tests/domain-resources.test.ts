@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Readable } from 'node:stream';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { TicketResource } from '../src/resources/domain/TicketResource.js';
 import { ComputerResource } from '../src/resources/domain/ComputerResource.js';
 import { UserResource } from '../src/resources/domain/UserResource.js';
@@ -270,5 +273,69 @@ describe('Domain Resource Services', () => {
     expect(file.contentType).toBe('image/png');
     expect(file.filename).toBe('my diagram.png');
     expect(file.data).toBeDefined();
+  });
+
+  it('DocumentResource_upload_handles_file_path_string', async () => {
+    const tmpFile = path.join(os.tmpdir(), `test-upload-${Date.now()}.pdf`);
+    await fs.writeFile(tmpFile, 'dummy pdf content');
+    try {
+      (mockHttp.request as any).mockResolvedValueOnce({
+        status: 201,
+        data: { id: 80, href: '/Management/Document/80' },
+      });
+
+      const docs = new DocumentResource(mockHttp);
+      const result = await docs.upload(tmpFile, { name: 'Auto PDF' });
+
+      expect(result.id).toBe(80);
+      expect(mockHttp.request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'POST',
+          path: '/Management/Document',
+          body: expect.any(FormData),
+        })
+      );
+      const call = (mockHttp.request as any).mock.calls[0][0];
+      const formData = call.body as FormData;
+      const fileEntry = formData.get('file') as File;
+      expect(fileEntry).toBeDefined();
+      expect(fileEntry.name).toBe(path.basename(tmpFile));
+      expect(fileEntry.type).toBe('application/pdf');
+    } finally {
+      await fs.unlink(tmpFile).catch(() => {});
+    }
+  });
+
+  it('DocumentResource_upload_handles_filePath_in_object', async () => {
+    const tmpFile = path.join(os.tmpdir(), `test-upload-${Date.now()}.csv`);
+    await fs.writeFile(tmpFile, 'col1,col2\nval1,val2');
+    try {
+      (mockHttp.request as any).mockResolvedValueOnce({
+        status: 201,
+        data: { id: 81, href: '/Management/Document/81' },
+      });
+
+      const docs = new DocumentResource(mockHttp);
+      const result = await docs.upload({
+        filePath: tmpFile,
+        filename: 'custom.csv',
+      });
+
+      expect(result.id).toBe(81);
+      const call = (mockHttp.request as any).mock.calls[0][0];
+      const formData = call.body as FormData;
+      const fileEntry = formData.get('file') as File;
+      expect(fileEntry.name).toBe('custom.csv');
+      expect(fileEntry.type).toBe('text/csv');
+    } finally {
+      await fs.unlink(tmpFile).catch(() => {});
+    }
+  });
+
+  it('DocumentResource_upload_throws_when_missing_both_content_and_filePath', async () => {
+    const docs = new DocumentResource(mockHttp);
+    await expect(docs.upload({ filename: 'bad.txt' } as any)).rejects.toThrow(
+      'DocumentUploadFile must provide either content or filePath'
+    );
   });
 });

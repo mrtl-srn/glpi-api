@@ -66,6 +66,47 @@ function parseContentDispositionFilename(headerValue?: string): string | undefin
   return undefined;
 }
 
+const EXTENSION_MIME_MAP: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.txt': 'text/plain',
+  '.log': 'text/plain',
+  '.csv': 'text/csv',
+  '.json': 'application/json',
+  '.xml': 'application/xml',
+  '.html': 'text/html',
+  '.htm': 'text/html',
+  '.css': 'text/css',
+  '.zip': 'application/zip',
+  '.tar': 'application/x-tar',
+  '.gz': 'application/gzip',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.ppt': 'application/vnd.ms-powerpoint',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+};
+
+/**
+ * Attempts to deduce the MIME type from a file path or filename.
+ */
+function lookupMimeType(filePathOrName: string): string {
+  const dotIndex = filePathOrName.lastIndexOf('.');
+  if (dotIndex >= 0) {
+    const ext = filePathOrName.slice(dotIndex).toLowerCase();
+    if (EXTENSION_MIME_MAP[ext]) {
+      return EXTENSION_MIME_MAP[ext];
+    }
+  }
+  return 'application/octet-stream';
+}
+
 /**
  * Converts various content representations (Buffer, Uint8Array, Blob, string, Stream) into a standard Blob.
  */
@@ -125,16 +166,48 @@ export class DocumentResource extends ResourceService<GlpiDocument> {
   /**
    * Uploads a file with metadata to GLPI using multipart/form-data.
    *
-   * @param file File content (Buffer, Uint8Array, Blob, string, or Stream) and filename/MIME information.
+   * @param file Local file path string OR DocumentUploadFile (with content or filePath, filename, and mimeType).
    * @param metadata Optional metadata fields (name, comment, uploadManifest) to attach to the document.
    * @param options Optional request options including entity/profile scoping.
    * @returns Creation result containing the new document ID and URL.
    */
   async upload(
-    file: DocumentUploadFile,
+    file: string | DocumentUploadFile,
     metadata?: DocumentMetadata,
     options?: RequestOptions
   ): Promise<CreateResult> {
+    const uploadFile: DocumentUploadFile =
+      typeof file === 'string' ? { filePath: file } : { ...file };
+
+    if (!uploadFile.content && uploadFile.filePath) {
+      if (!uploadFile.filename) {
+        const lastSlash = Math.max(
+          uploadFile.filePath.lastIndexOf('/'),
+          uploadFile.filePath.lastIndexOf('\\')
+        );
+        uploadFile.filename =
+          lastSlash >= 0 ? uploadFile.filePath.slice(lastSlash + 1) : uploadFile.filePath;
+      }
+      if (!uploadFile.mimeType) {
+        uploadFile.mimeType = lookupMimeType(uploadFile.filename || uploadFile.filePath);
+      }
+      try {
+        const fs = await import('node:fs/promises');
+        uploadFile.content = await fs.readFile(uploadFile.filePath);
+      } catch (err: any) {
+        throw new GlpiError(
+          `Failed to read file from path "${uploadFile.filePath}": ${err?.message ?? String(err)}`,
+          { cause: err }
+        );
+      }
+    } else if (!uploadFile.content) {
+      throw new GlpiError('DocumentUploadFile must provide either content or filePath');
+    }
+
+    if (!uploadFile.mimeType && uploadFile.filename) {
+      uploadFile.mimeType = lookupMimeType(uploadFile.filename);
+    }
+
     const formData = new FormData();
 
     if (metadata) {
@@ -146,8 +219,8 @@ export class DocumentResource extends ResourceService<GlpiDocument> {
       }
     }
 
-    const blob = await toBlob(file);
-    const filename = file.filename ?? metadata?.filename ?? 'file';
+    const blob = await toBlob(uploadFile);
+    const filename = uploadFile.filename ?? metadata?.filename ?? 'file';
     formData.append('file', blob, filename);
 
     const headers = this.buildHeaders(options);

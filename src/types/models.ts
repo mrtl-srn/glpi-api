@@ -261,8 +261,9 @@ export interface TicketTimelineItem {
 export interface DocumentUploadFile {
   /**
    * The binary content or readable stream of the file.
+   * Optional if filePath is provided.
    */
-  content:
+  content?:
     | Buffer
     | Uint8Array
     | ArrayBuffer
@@ -273,12 +274,19 @@ export interface DocumentUploadFile {
     | AsyncIterable<Uint8Array | Buffer | string>;
 
   /**
+   * Local file path to read content from automatically in Node.js environments.
+   */
+  filePath?: string;
+
+  /**
    * File name with extension (e.g. 'report.pdf').
+   * If omitted and filePath is provided, derived from the path basename.
    */
   filename?: string;
 
   /**
    * MIME type of the file (e.g. 'application/pdf', 'text/plain').
+   * If omitted and filePath or filename is provided, inferred from the file extension.
    */
   mimeType?: string;
 }
