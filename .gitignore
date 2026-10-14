@@ -6,3 +6,6 @@ tmp
 .agents
 dist
 .superpowers
+.env
+.env.local
+.devcontainer

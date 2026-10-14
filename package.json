@@ -27,6 +27,7 @@
     "build": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:live": "node scripts/test-live.mjs",
     "typecheck": "tsc --noEmit"
   },
   "repository": {
