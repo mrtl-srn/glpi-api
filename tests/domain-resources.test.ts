@@ -338,4 +338,66 @@ describe('Domain Resource Services', () => {
       'DocumentUploadFile must provide either content or filePath'
     );
   });
+
+  it('TicketResource_addDocument_with_numeric_and_string_ids', async () => {
+    (mockHttp.request as any).mockResolvedValueOnce({
+      status: 201,
+      data: { id: 100, href: '/Assistance/Ticket/10/Timeline/Document/100' },
+    });
+
+    const tickets = new TicketResource(mockHttp);
+    const result = await tickets.addDocument(10, 20);
+
+    expect(result.id).toBe(100);
+    expect(mockHttp.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'POST',
+        path: '/Assistance/Ticket/10/Timeline/Document',
+        body: { id: 20, documents_id: 20 },
+      })
+    );
+  });
+
+  it('TicketResource_addDocument_with_resource_objects', async () => {
+    (mockHttp.request as any).mockResolvedValueOnce({
+      status: 201,
+      data: { id: 101, href: '/Assistance/Ticket/10/Timeline/Document/101' },
+    });
+
+    const tickets = new TicketResource(mockHttp);
+    const mockTicket = { id: 10, name: 'Sample Ticket' };
+    const mockDocument = { id: 25, filename: 'report.pdf' };
+
+    const result = await tickets.addDocument(mockTicket, mockDocument);
+
+    expect(result.id).toBe(101);
+    expect(mockHttp.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'POST',
+        path: '/Assistance/Ticket/10/Timeline/Document',
+        body: { id: 25, documents_id: 25 },
+      })
+    );
+  });
+
+  it('TicketResource_addDocument_with_mixed_parameters_and_options', async () => {
+    (mockHttp.request as any).mockResolvedValueOnce({
+      status: 201,
+      data: { id: 102, href: '/Assistance/Ticket/15/Timeline/Document/102' },
+    });
+
+    const tickets = new TicketResource(mockHttp);
+    const result = await tickets.addDocument({ id: 15 }, '30', { entity: 2 });
+
+    expect(result.id).toBe(102);
+    expect(mockHttp.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'POST',
+        path: '/Assistance/Ticket/15/Timeline/Document',
+        body: { id: 30, documents_id: 30 },
+        headers: expect.objectContaining({ 'GLPI-Entity': '2' }),
+      })
+    );
+  });
 });
+

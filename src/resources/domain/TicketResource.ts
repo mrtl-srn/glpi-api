@@ -111,4 +111,43 @@ export class TicketResource extends ResourceService<GlpiTicket> {
 
     return response.data;
   }
+
+  /**
+   * Associates or links a document to a ticket timeline.
+   *
+   * @param ticket Ticket ID or ticket resource object.
+   * @param document Document ID or document resource object.
+   * @param options Optional request options including entity/profile scoping.
+   * @returns Creation result containing the new timeline item ID and URL.
+   */
+  async addDocument(
+    ticket: number | string | { id: number | string; [key: string]: unknown },
+    document: number | string | { id: number | string; [key: string]: unknown },
+    options?: RequestOptions
+  ): Promise<CreateResult> {
+    const ticketId =
+      typeof ticket === 'object' && ticket !== null ? ticket.id : ticket;
+    const documentId =
+      typeof document === 'object' && document !== null ? document.id : document;
+
+    const docId = Number.isNaN(Number(documentId))
+      ? documentId
+      : Number(documentId);
+
+    const headers = this.buildHeaders(options);
+
+    const response = await this.http.request<CreateResult>({
+      method: 'POST',
+      path: `${this.basePath}/${ticketId}/Timeline/Document`,
+      body: {
+        id: docId,
+        documents_id: docId,
+      },
+      headers,
+      signal: options?.signal,
+    });
+
+    return response.data;
+  }
 }
+
