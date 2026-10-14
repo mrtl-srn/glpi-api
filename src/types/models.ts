@@ -25,6 +25,22 @@ export interface TicketStatusInfo {
 }
 
 /**
+ * Generic item reference object returned by GLPI REST API for dropdowns and linked entities.
+ */
+export interface GlpiItemReference {
+  id: number;
+  name?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Entity reference object returned by GLPI REST API.
+ */
+export interface GlpiEntityReference extends GlpiItemReference {
+  completename?: string;
+}
+
+/**
  * GLPI Ticket type values.
  */
 export enum TicketType {
@@ -54,26 +70,26 @@ export interface GlpiTicket {
   id: number;
   name?: string;
   content?: string;
-  status?: TicketStatusInfo | TicketStatus | number;
+  status?: TicketStatusInfo;
   urgency?: PriorityLevel;
   impact?: PriorityLevel;
   priority?: PriorityLevel;
   type?: TicketType | number;
-  user_recipient?: number | { id: number; name?: string; [key: string]: unknown };
-  user_editor?: number | { id: number; name?: string; [key: string]: unknown };
-  category?: number | { id: number; name?: string; [key: string]: unknown };
-  location?: number | { id: number; name?: string; [key: string]: unknown };
-  entity?: number | { id: number; name?: string; [key: string]: unknown };
+  user_recipient?: GlpiItemReference;
+  user_editor?: GlpiItemReference;
+  category?: GlpiItemReference;
+  location?: GlpiItemReference;
+  entity?: GlpiEntityReference;
   is_deleted?: boolean | number;
   date_creation?: string;
   date_mod?: string;
   date?: string;
   date_solve?: string;
   date_close?: string;
-  sla_ttr?: number;
-  sla_tto?: number;
-  ola_ttr?: number;
-  ola_tto?: number;
+  sla_ttr?: GlpiItemReference | number;
+  sla_tto?: GlpiItemReference | number;
+  ola_ttr?: GlpiItemReference | number;
+  ola_tto?: GlpiItemReference | number;
   actiontime?: number;
   waiting_duration?: number;
   close_duration?: number;
@@ -94,12 +110,12 @@ export interface GlpiComputer {
   id: number;
   name?: string;
   comment?: string;
-  status?: { id: number; name?: string; [key: string]: unknown } | number;
-  entity?: number | { id: number; name?: string; [key: string]: unknown };
+  status?: GlpiItemReference;
+  entity?: GlpiEntityReference;
   is_recursive?: boolean | number;
-  manufacturer?: number | { id: number; name?: string; [key: string]: unknown };
-  user?: number | { id: number; name?: string; [key: string]: unknown };
-  user_tech?: number | { id: number; name?: string; [key: string]: unknown };
+  manufacturer?: GlpiItemReference;
+  user?: GlpiItemReference;
+  user_tech?: GlpiItemReference;
   contact?: string;
   contact_num?: string;
   serial?: string;
@@ -107,14 +123,14 @@ export interface GlpiComputer {
   is_deleted?: boolean | number;
   date_creation?: string;
   date_mod?: string;
-  location?: number | { id: number; name?: string; [key: string]: unknown };
-  type?: number | { id: number; name?: string; [key: string]: unknown };
-  model?: number | { id: number; name?: string; [key: string]: unknown };
-  group?: number | { id: number; name?: string; [key: string]: unknown };
-  group_tech?: number | { id: number; name?: string; [key: string]: unknown };
+  location?: GlpiItemReference;
+  type?: GlpiItemReference;
+  model?: GlpiItemReference;
+  group?: GlpiItemReference;
+  group_tech?: GlpiItemReference;
   uuid?: string;
-  network?: number | { id: number; name?: string; [key: string]: unknown };
-  autoupdatesystem?: number | { id: number; name?: string; [key: string]: unknown };
+  network?: GlpiItemReference;
+  autoupdatesystem?: GlpiItemReference;
   is_template?: boolean | number;
   template_name?: string;
   is_dynamic?: boolean | number;
@@ -142,16 +158,16 @@ export interface GlpiUser {
   is_deleted?: boolean | number;
   picture?: string;
   date_password_change?: string;
-  location?: number | { id: number; name?: string; [key: string]: unknown };
+  location?: GlpiItemReference;
   authtype?: number;
   last_login?: string;
-  default_profile?: number | { id: number; name?: string; [key: string]: unknown };
-  default_entity?: number | { id: number; name?: string; [key: string]: unknown };
+  default_profile?: GlpiItemReference;
+  default_entity?: GlpiEntityReference;
   date_creation?: string;
   date_mod?: string;
   date_sync?: string;
-  title?: number | { id: number; name?: string; [key: string]: unknown };
-  category?: number | { id: number; name?: string; [key: string]: unknown };
+  title?: GlpiItemReference;
+  category?: GlpiItemReference;
   registration_number?: string;
   begin_date?: string;
   end_date?: string;
@@ -166,16 +182,16 @@ export interface GlpiDocument {
   id: number;
   name?: string;
   comment?: string;
-  entity?: number | { id: number; name?: string; [key: string]: unknown };
+  entity?: GlpiEntityReference;
   filename?: string;
   filepath?: string;
   download_url?: string;
   mime?: string;
   sha1sum?: string;
   checksum_sha1?: string;
-  category?: number | { id: number; name?: string; [key: string]: unknown };
+  category?: GlpiItemReference;
   link?: string;
-  user?: number | { id: number; name?: string; [key: string]: unknown };
+  user?: GlpiItemReference;
   is_deleted?: boolean | number;
   is_import_denied?: boolean | number;
   tag?: string;

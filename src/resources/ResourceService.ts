@@ -173,10 +173,10 @@ export class ResourceService<T = unknown> implements IResourceService<T> {
   /**
    * Creates a new entity. If options.fetch is true, retrieves and returns the full entity.
    */
-  create(data: Partial<T>, options: CreateOptions & { fetch: true }): Promise<T>;
-  create(data: Partial<T>, options?: CreateOptions & { fetch?: false }): Promise<CreateResult>;
-  create(data: Partial<T>, options?: CreateOptions): Promise<CreateResult | T>;
-  async create(data: Partial<T>, options?: CreateOptions): Promise<CreateResult | T> {
+  create(data: Partial<T> | Record<string, unknown>, options: CreateOptions & { fetch: true }): Promise<T>;
+  create(data: Partial<T> | Record<string, unknown>, options?: CreateOptions & { fetch?: false }): Promise<CreateResult>;
+  create(data: Partial<T> | Record<string, unknown>, options?: CreateOptions): Promise<CreateResult | T>;
+  async create(data: Partial<T> | Record<string, unknown>, options?: CreateOptions): Promise<CreateResult | T> {
     const headers = this.buildHeaders(options);
     const response = await this.http.request<CreateResult>({
       method: 'POST',
@@ -209,7 +209,7 @@ export class ResourceService<T = unknown> implements IResourceService<T> {
   /**
    * Updates an existing entity by ID.
    */
-  async update(id: number | string, data: Partial<T>, options?: UpdateOptions): Promise<T> {
+  async update(id: number | string, data: Partial<T> | Record<string, unknown>, options?: UpdateOptions): Promise<T> {
     const method = options?.method ?? 'PATCH';
     const headers = this.buildHeaders(options);
     const response = await this.http.request<T>({

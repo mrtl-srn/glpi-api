@@ -168,14 +168,14 @@ export interface IResourceService<T> {
   /**
    * Creates a new entity. If options.fetch is true, returns the fully populated entity T.
    */
-  create(data: Partial<T>, options: CreateOptions & { fetch: true }): Promise<T>;
-  create(data: Partial<T>, options?: CreateOptions & { fetch?: false }): Promise<CreateResult>;
-  create(data: Partial<T>, options?: CreateOptions): Promise<CreateResult | T>;
+  create(data: Partial<T> | Record<string, unknown>, options: CreateOptions & { fetch: true }): Promise<T>;
+  create(data: Partial<T> | Record<string, unknown>, options?: CreateOptions & { fetch?: false }): Promise<CreateResult>;
+  create(data: Partial<T> | Record<string, unknown>, options?: CreateOptions): Promise<CreateResult | T>;
 
   /**
    * Updates an existing entity by ID.
    */
-  update(id: number | string, data: Partial<T>, options?: UpdateOptions): Promise<T>;
+  update(id: number | string, data: Partial<T> | Record<string, unknown>, options?: UpdateOptions): Promise<T>;
 
   /**
    * Deletes an entity by ID with optional purge/force flags.
