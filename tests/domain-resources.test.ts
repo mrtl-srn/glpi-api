@@ -21,8 +21,8 @@ describe('Domain Resource Services', () => {
 
   it('TicketResource_adds_followup_and_assigns', async () => {
     (mockHttp.request as any)
-      .mockResolvedValueOnce({ status: 201, data: { id: 50, href: '/Assistance/Ticket/1/Followup/50' } })
-      .mockResolvedValueOnce({ status: 201, data: { id: 51, href: '/Assistance/Ticket/1/Actor/51' } });
+      .mockResolvedValueOnce({ status: 201, data: { id: 50, href: '/Assistance/Ticket/1/Timeline/Followup/50' } })
+      .mockResolvedValueOnce({ status: 201, data: { id: 51, href: '/Assistance/Ticket/1/TeamMember/51' } });
 
     const tickets = new TicketResource(mockHttp);
     const followup = await tickets.addFollowup(1, 'Issue investigated');
@@ -30,7 +30,7 @@ describe('Domain Resource Services', () => {
     expect(mockHttp.request).toHaveBeenCalledWith(
       expect.objectContaining({
         method: 'POST',
-        path: '/Assistance/Ticket/1/Followup',
+        path: '/Assistance/Ticket/1/Timeline/Followup',
         body: expect.objectContaining({ content: 'Issue investigated' }),
       })
     );
@@ -40,8 +40,8 @@ describe('Domain Resource Services', () => {
     expect(mockHttp.request).toHaveBeenCalledWith(
       expect.objectContaining({
         method: 'POST',
-        path: '/Assistance/Ticket/1/Actor',
-        body: expect.objectContaining({ id: 24, type: 'user' }),
+        path: '/Assistance/Ticket/1/TeamMember',
+        body: expect.objectContaining({ id: 24, type: 'User', role: 'assigned' }),
       })
     );
   });
@@ -55,7 +55,7 @@ describe('Domain Resource Services', () => {
           { id: 102, itemtype: 'TicketTask', content: 'Investigate logs' },
         ],
       })
-      .mockResolvedValueOnce({ status: 201, data: { id: 60, href: '/Assistance/Ticket/2/Actor/60' } });
+      .mockResolvedValueOnce({ status: 201, data: { id: 60, href: '/Assistance/Ticket/2/TeamMember/60' } });
 
     const tickets = new TicketResource(mockHttp);
     const timeline = await tickets.getTimeline(2, { entity: 5 });
@@ -75,8 +75,8 @@ describe('Domain Resource Services', () => {
     expect(mockHttp.request).toHaveBeenCalledWith(
       expect.objectContaining({
         method: 'POST',
-        path: '/Assistance/Ticket/2/Actor',
-        body: expect.objectContaining({ id: 99, type: 'group' }),
+        path: '/Assistance/Ticket/2/TeamMember',
+        body: expect.objectContaining({ id: 99, type: 'Group', role: 'assigned' }),
       })
     );
   });
@@ -84,7 +84,7 @@ describe('Domain Resource Services', () => {
   it('TicketResource_supports_object_content_for_followup', async () => {
     (mockHttp.request as any).mockResolvedValueOnce({
       status: 201,
-      data: { id: 70, href: '/Assistance/Ticket/3/Followup/70' },
+      data: { id: 70, href: '/Assistance/Ticket/3/Timeline/Followup/70' },
     });
 
     const tickets = new TicketResource(mockHttp);
@@ -97,7 +97,7 @@ describe('Domain Resource Services', () => {
     expect(mockHttp.request).toHaveBeenCalledWith(
       expect.objectContaining({
         method: 'POST',
-        path: '/Assistance/Ticket/3/Followup',
+        path: '/Assistance/Ticket/3/Timeline/Followup',
         body: expect.objectContaining({ content: 'Private note', is_private: 1 }),
       })
     );

@@ -37,7 +37,7 @@ export class AuthorizationCodeAuthProvider implements IAuthProvider {
     this.code = options.code;
     this.redirectUri = options.redirectUri;
     this.refreshToken = options.refreshToken;
-    this.scope = options.scope;
+    this.scope = options.scope === 'all' ? 'api user email graphql status' : options.scope;
 
     this.storage = options.storage ?? new InMemoryTokenStorage();
     this.tokenManager = new TokenManager(

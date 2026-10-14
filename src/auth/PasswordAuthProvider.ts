@@ -35,7 +35,7 @@ export class PasswordAuthProvider implements IAuthProvider {
     this.clientSecret = options.clientSecret;
     this.username = options.username;
     this.password = options.password;
-    this.scope = options.scope;
+    this.scope = options.scope === 'all' ? 'api user email graphql status' : options.scope;
 
     const storage: ITokenStorage = options.storage ?? new InMemoryTokenStorage();
     this.tokenManager = new TokenManager(

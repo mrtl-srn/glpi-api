@@ -46,7 +46,7 @@ export class TicketResource extends ResourceService<GlpiTicket> {
 
     const response = await this.http.request<CreateResult>({
       method: 'POST',
-      path: `${this.basePath}/${ticketId}/Followup`,
+      path: `${this.basePath}/${ticketId}/Timeline/Followup`,
       body,
       headers,
       signal: options?.signal,
@@ -94,13 +94,15 @@ export class TicketResource extends ResourceService<GlpiTicket> {
     options?: RequestOptions
   ): Promise<CreateResult> {
     const headers = this.buildHeaders(options);
+    const capitalizedType =
+      type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
 
     const response = await this.http.request<CreateResult>({
       method: 'POST',
-      path: `${this.basePath}/${ticketId}/Actor`,
+      path: `${this.basePath}/${ticketId}/TeamMember`,
       body: {
-        id: actorId,
-        type,
+        id: Number(actorId),
+        type: capitalizedType,
         role: 'assigned',
       },
       headers,

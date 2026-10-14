@@ -27,7 +27,7 @@ export class ClientCredentialsAuthProvider implements IAuthProvider {
     this.tokenEndpoint = options.tokenEndpoint ?? '/token';
     this.clientId = options.clientId;
     this.clientSecret = options.clientSecret;
-    this.scope = options.scope;
+    this.scope = options.scope === 'all' ? 'inventory' : options.scope;
 
     const storage: ITokenStorage = options.storage ?? new InMemoryTokenStorage();
     this.tokenManager = new TokenManager(

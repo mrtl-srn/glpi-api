@@ -9,3 +9,5 @@ dist
 .env
 .env.local
 .devcontainer
+api-openapi.json
+api-*.md
