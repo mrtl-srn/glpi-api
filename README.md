@@ -24,6 +24,43 @@ Designed for Node.js 18+ with zero runtime dependencies, robust OAuth2 authentic
 
 ---
 
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Proxy Configuration](#proxy-configuration)
+  - [Explicit Proxy URL](#explicit-proxy-url)
+  - [Advanced Proxy Options](#advanced-proxy-options)
+  - [Environment Variable Auto-Discovery](#environment-variable-auto-discovery)
+  - [Custom Dispatcher](#custom-dispatcher)
+- [Authentication](#authentication)
+  - [1. Resource Owner Password Credentials](#1-resource-owner-password-credentials-password)
+  - [2. Authorization Code Flow](#2-authorization-code-flow-authorization_code)
+  - [3. Client Credentials Flow](#3-client-credentials-flow-client_credentials)
+  - [Token Storage](#token-storage)
+- [RSQL Query Builder](#rsql-query-builder)
+  - [Supported Operators](#supported-operators)
+- [Domain Resources](#domain-resources)
+  - [Tickets (`client.tickets`)](#tickets-clienttickets)
+  - [Computers (`client.computers`)](#computers-clientcomputers)
+  - [Users (`client.users`)](#users-clientusers)
+  - [Documents (`client.documents`)](#documents-clientdocuments)
+- [Generic & Plugin Resources](#generic--plugin-resources)
+  - [Using Core Endpoints](#using-core-endpoints)
+  - [Registering Plugin Route Aliases](#registering-plugin-route-aliases)
+- [GraphQL Queries](#graphql-queries)
+- [Session Scoping](#session-scoping)
+  - [Global Client Scoping](#global-client-scoping)
+  - [Per-Request Scoping](#per-request-scoping)
+- [Error Handling](#error-handling)
+  - [Error Types Reference](#error-types-reference)
+- [Migration from v1.x](#migration-from-v1x)
+- [Changelog](#changelog)
+- [License](#license)
+
+---
+
 ## Installation
 
 ```bash
@@ -339,6 +376,9 @@ await client.tickets.update(1042, {
   status: 2, // In progress
 });
 
+// Add a followup comment to the ticket
+await client.tickets.addFollowup(1042, 'Technician dispatched on site.');
+
 // Assign an actor (technician, group, or supplier)
 await client.tickets.assign(1042, 15, 'user');
 
@@ -369,8 +409,15 @@ const users = await client.users.list({
   filter: rsql().eq('is_active', 1),
 });
 
-// Fetch user profile
+// Fetch user profile by ID
 const user = await client.users.get(15);
+
+// Get current logged-in user details
+const me = await client.users.me();
+console.log(`Logged in as: ${me.name}`);
+
+// Inspect session details (entities, active profile)
+const session = await client.users.getSession();
 ```
 
 ### Documents (`client.documents`)
@@ -570,6 +617,14 @@ Version 2.0.0 is a complete TypeScript rewrite modernizing the library for the c
 - **Zero Runtime Dependencies**: Replaces deprecated dependencies (`request`, `request-promise-native`, `qs`, `lodash`) with native Node 18+ Web Standards.
 - **Dual Bundling**: Native support for ESM (`import`) and CommonJS (`require`).
 - **Full Type Safety**: Complete TypeScript definitions included without needing third-party `@types/` packages.
+
+For a full list of breaking changes and new features, see the [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Changelog
+
+Detailed release notes and migration guides are maintained in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
