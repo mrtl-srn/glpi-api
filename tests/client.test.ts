@@ -183,4 +183,16 @@ describe('GlpiClient initialization', () => {
     );
     expect(customAuth.logout).toHaveBeenCalledOnce();
   });
+
+  it('forwards proxy and noProxy options to underlying http transport', () => {
+    const client = new GlpiClient({
+      apiUrl: 'https://glpi.corp.com/api.php',
+      proxy: 'http://proxy.corp:8080',
+      noProxy: ['glpi.corp.com'],
+    });
+
+    expect((client as any).rootHttp.shouldBypassProxy('https://glpi.corp.com/api.php')).toBe(true);
+    expect((client as any).rootHttp.shouldBypassProxy('https://other.com/api.php')).toBe(false);
+  });
 });
+

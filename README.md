@@ -33,6 +33,7 @@ Designed for Node.js 18+ with zero runtime dependencies, robust OAuth2 authentic
   - [Explicit Proxy URL](#explicit-proxy-url)
   - [Advanced Proxy Options](#advanced-proxy-options)
   - [Environment Variable Auto-Discovery](#environment-variable-auto-discovery)
+  - [Bypassing Proxies with NO_PROXY / noProxy](#bypassing-proxies-with-no_proxy--noproxy)
   - [Custom Dispatcher](#custom-dispatcher)
 - [Authentication](#authentication)
   - [1. Resource Owner Password Credentials](#1-resource-owner-password-credentials-password)
@@ -185,7 +186,28 @@ const client = new GlpiClient({
 });
 ```
 
-The client also respects `NO_PROXY` / `no_proxy` rules for domain bypass.
+### Bypassing Proxies with `NO_PROXY` / `noProxy`
+
+Target URLs can bypass configured proxies automatically or programmatically:
+
+1. **Environment Variables**: `glpi-api` automatically evaluates standard `NO_PROXY` and `no_proxy` environment variables.
+2. **Programmatic Bypass**: Pass `noProxy` as a string or array in `GlpiClientOptions` (or `ProxyOptions`), which overrides environment defaults:
+
+```typescript
+const client = new GlpiClient({
+  apiUrl: 'https://glpi.corp.internal/api.php',
+  proxy: 'http://proxy.corp.internal:8080',
+  noProxy: ['localhost', '127.0.0.1', '.corp.internal', '192.168.0.0/16'],
+  auth: { /* ... */ },
+});
+```
+
+Supported bypass rule formats:
+- **Wildcard (`*`)**: Bypasses proxy for all target URLs.
+- **Domain suffixes (`.example.com`, `*.example.com`, `example.com`)**: Matches the host and subdomains.
+- **Exact hostnames & IP addresses (`localhost`, `127.0.0.1`, `::1`, `[::1]`)**.
+- **Port-specific rules (`host:port`, e.g. `glpi.internal:8443` or `[::1]:8080`)**.
+- **IPv4 CIDR blocks (`192.168.0.0/16`, `10.0.0.0/8`)**.
 
 ### Custom Dispatcher
 

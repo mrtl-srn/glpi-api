@@ -22,6 +22,7 @@ Complete modernization and rewrite of `glpi-api` into 100% strict TypeScript for
   - Direct proxy URL string support (`proxy: 'http://proxy.corp:8080'`).
   - Structured `ProxyOptions` with custom proxy headers and authentication.
   - Automatic system environment discovery (`useEnvProxy: true`) respecting `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY`.
+  - Comprehensive `NO_PROXY` / `no_proxy` bypass engine supporting wildcards (`*`), domain suffixes (`.corp.internal`), IPv6 addresses, port matching (`host:port`), and IPv4 CIDR blocks (`192.168.0.0/16`), with programmatic `noProxy` overrides.
   - Custom Undici dispatcher support.
 - **Robust OAuth2 Engine**:
   - Resource Owner Password Credentials (`password`) with silent credential re-authentication on token expiration (handling GLPI v2's omission of refresh tokens).

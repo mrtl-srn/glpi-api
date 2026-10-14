@@ -65,6 +65,7 @@ export interface GlpiClientOptions {
   auth?: GlpiAuthOption;
   proxy?: string | ProxyOptions;
   useEnvProxy?: boolean;
+  noProxy?: string | string[];
   dispatcher?: unknown;
   fetch?: typeof fetch;
   timeout?: number;
@@ -131,6 +132,7 @@ export class GlpiClient {
     const commonHttpConfig = {
       proxy: options.proxy,
       useEnvProxy: options.useEnvProxy,
+      noProxy: options.noProxy,
       dispatcher: options.dispatcher,
       fetch: options.fetch,
       timeout: options.timeout,
@@ -227,6 +229,20 @@ export class GlpiClient {
    */
   public getRegistry(): RouteRegistry {
     return this.registry;
+  }
+
+  /**
+   * Retrieves the underlying root HTTP client.
+   */
+  public get rootHttp(): FetchHttpClient {
+    return this.rootHttpClient;
+  }
+
+  /**
+   * Retrieves the underlying REST HTTP client.
+   */
+  public get restHttp(): FetchHttpClient {
+    return this.restHttpClient;
   }
 
   /**

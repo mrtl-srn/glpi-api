@@ -15,6 +15,95 @@ import type {
   ResponseInterceptor,
 } from './types.js';
 
+function ipToInt(ip: string): number | null {
+  const parts = ip.split('.');
+  if (parts.length !== 4) return null;
+  let res = 0;
+  for (let i = 0; i < 4; i++) {
+    const n = Number(parts[i]);
+    if (!Number.isInteger(n) || n < 0 || n > 255) return null;
+    res = ((res << 8) | n) >>> 0;
+  }
+  return res;
+}
+
+function matchCidr(ip: string, cidr: string): boolean {
+  const [netStr, bitsStr] = cidr.split('/');
+  if (!netStr || !bitsStr) return false;
+  const bits = Number(bitsStr);
+  if (!Number.isInteger(bits) || bits < 0 || bits > 32) return false;
+  const targetIpInt = ipToInt(ip);
+  const netIpInt = ipToInt(netStr);
+  if (targetIpInt === null || netIpInt === null) return false;
+  if (bits === 0) return true;
+  const mask = bits === 32 ? 0xffffffff : (~((1 << (32 - bits)) - 1)) >>> 0;
+  return (targetIpInt & mask) === (netIpInt & mask);
+}
+
+function matchNoProxyRule(url: URL, rule: string): boolean {
+  rule = rule.trim().toLowerCase();
+  if (!rule) return false;
+  if (rule === '*') return true;
+
+  const rawHost = url.hostname.toLowerCase();
+  const urlHost = rawHost.replace(/^\[|\]$/g, '');
+  const urlPort =
+    url.port ||
+    (url.protocol === 'https:' ? '443' : url.protocol === 'http:' ? '80' : '');
+
+  let ruleHost = rule;
+  let rulePort: string | undefined;
+
+  if (rule.startsWith('[')) {
+    const closingBracket = rule.indexOf(']');
+    if (closingBracket !== -1) {
+      ruleHost = rule.slice(1, closingBracket);
+      if (rule[closingBracket + 1] === ':') {
+        rulePort = rule.slice(closingBracket + 2);
+      }
+    }
+  } else if (rule.includes(':') && !rule.includes('/')) {
+    const firstColon = rule.indexOf(':');
+    const lastColon = rule.lastIndexOf(':');
+    if (firstColon === lastColon) {
+      const possiblePort = rule.slice(firstColon + 1);
+      if (/^\d+$/.test(possiblePort)) {
+        ruleHost = rule.slice(0, firstColon);
+        rulePort = possiblePort;
+      }
+    }
+  }
+
+  ruleHost = ruleHost.replace(/^\[|\]$/g, '');
+
+  if (rulePort !== undefined && rulePort !== urlPort) {
+    return false;
+  }
+
+  if (ruleHost.includes('/')) {
+    return matchCidr(urlHost, ruleHost);
+  }
+
+  if (ruleHost === urlHost) {
+    return true;
+  }
+
+  if (ruleHost.startsWith('*.')) {
+    const suffix = ruleHost.slice(1);
+    return urlHost.endsWith(suffix);
+  }
+
+  if (ruleHost.startsWith('.')) {
+    return urlHost === ruleHost.slice(1) || urlHost.endsWith(ruleHost);
+  }
+
+  if (urlHost.endsWith('.' + ruleHost)) {
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * Native fetch-based implementation of IHttpClient with proxy, interceptors, and error mapping.
  */
@@ -24,6 +113,7 @@ export class FetchHttpClient implements IHttpClient {
   private readonly timeout?: number;
   private readonly proxy?: string | ProxyOptions;
   private readonly useEnvProxy: boolean;
+  private readonly noProxy?: string | string[];
   private dispatcher?: unknown;
   private readonly logger: ILogger;
   private readonly defaultHeaders: Headers;
@@ -40,9 +130,11 @@ export class FetchHttpClient implements IHttpClient {
     this.timeout = config.timeout;
     this.proxy = config.proxy;
     this.useEnvProxy = config.useEnvProxy ?? false;
+    this.noProxy = config.noProxy;
     this.dispatcher = config.dispatcher;
     this.logger = config.logger ?? new NoopLogger();
     this.defaultHeaders = new Headers();
+
 
     if (config.headers) {
       if (config.headers instanceof Headers) {
@@ -111,9 +203,66 @@ export class FetchHttpClient implements IHttpClient {
   }
 
   /**
-   * Returns normalized proxy options if configured via proxy property or environment.
+   * Retrieves all active NO_PROXY bypass rules from configuration or environment.
    */
-  getProxyOptions(): ProxyOptions | undefined {
+  getNoProxyRules(): string[] {
+    const rules: string[] = [];
+    if (this.noProxy !== undefined) {
+      if (Array.isArray(this.noProxy)) {
+        for (const item of this.noProxy) {
+          rules.push(...item.split(/[,;\s]+/));
+        }
+      } else if (typeof this.noProxy === 'string') {
+        rules.push(...this.noProxy.split(/[,;\s]+/));
+      }
+    } else if (this.proxy && typeof this.proxy === 'object' && this.proxy.noProxy !== undefined) {
+      if (Array.isArray(this.proxy.noProxy)) {
+        for (const item of this.proxy.noProxy) {
+          rules.push(...item.split(/[,;\s]+/));
+        }
+      } else if (typeof this.proxy.noProxy === 'string') {
+        rules.push(...this.proxy.noProxy.split(/[,;\s]+/));
+      }
+    } else if (typeof process !== 'undefined' && process.env) {
+      const envNoProxy = process.env.NO_PROXY || process.env.no_proxy;
+      if (envNoProxy) {
+        rules.push(...envNoProxy.split(/[,;\s]+/));
+      }
+    }
+    return rules.map((r) => r.trim()).filter(Boolean);
+  }
+
+  /**
+   * Checks whether a target URL should bypass the configured proxy.
+   */
+  shouldBypassProxy(urlInput: string | URL): boolean {
+    const rules = this.getNoProxyRules();
+    if (rules.length === 0) {
+      return false;
+    }
+    let parsedUrl: URL;
+    try {
+      if (urlInput instanceof URL) {
+        parsedUrl = urlInput;
+      } else if (urlInput.startsWith('http://') || urlInput.startsWith('https://')) {
+        parsedUrl = new URL(urlInput);
+      } else {
+        parsedUrl = new URL(urlInput, this.baseUrl || 'http://localhost');
+      }
+    } catch {
+      return false;
+    }
+    return rules.some((rule) => matchNoProxyRule(parsedUrl, rule));
+  }
+
+  /**
+   * Returns normalized proxy options if configured via proxy property or environment.
+   * If targetUrl is provided and matches NO_PROXY bypass rules, returns undefined.
+   */
+  getProxyOptions(targetUrl?: string): ProxyOptions | undefined {
+    if (targetUrl && this.shouldBypassProxy(targetUrl)) {
+      return undefined;
+    }
     if (typeof this.proxy === 'string') {
       return { url: this.proxy };
     }
@@ -279,7 +428,7 @@ export class FetchHttpClient implements IHttpClient {
       signal: controller.signal,
     };
 
-    const dispatcher = await this.resolveDispatcher(options.dispatcher);
+    const dispatcher = await this.resolveDispatcher(options.dispatcher, finalUrl);
     if (dispatcher) {
       requestInit.dispatcher = dispatcher;
     }
@@ -453,14 +602,21 @@ export class FetchHttpClient implements IHttpClient {
     return headers;
   }
 
-  private async resolveDispatcher(optionsDispatcher?: unknown): Promise<unknown | undefined> {
+  private async resolveDispatcher(
+    optionsDispatcher?: unknown,
+    targetUrl?: string
+  ): Promise<unknown | undefined> {
+    if (targetUrl && this.shouldBypassProxy(targetUrl)) {
+      this.logger.debug(`Bypassing proxy for ${targetUrl} due to NO_PROXY rules`);
+      return undefined;
+    }
     if (optionsDispatcher) {
       return optionsDispatcher;
     }
     if (this.dispatcher) {
       return this.dispatcher;
     }
-    const proxyOpts = this.getProxyOptions();
+    const proxyOpts = this.getProxyOptions(targetUrl);
     if (!proxyOpts) {
       return undefined;
     }

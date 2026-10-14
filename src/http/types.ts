@@ -70,6 +70,7 @@ export interface ProxyOptions {
   url: string;
   auth?: string | { username?: string; password?: string };
   headers?: Record<string, string>;
+  noProxy?: string | string[];
   [key: string]: unknown;
 }
 
@@ -83,6 +84,7 @@ export interface HttpClientConfig {
   fetch?: typeof fetch;
   proxy?: string | ProxyOptions;
   useEnvProxy?: boolean;
+  noProxy?: string | string[];
   dispatcher?: unknown;
   logger?: ILogger;
 }
@@ -96,4 +98,7 @@ export interface IHttpClient {
   useResponseInterceptor(interceptor: ResponseInterceptor): () => void;
   setHeader(name: string, value: string): void;
   removeHeader(name: string): void;
+  shouldBypassProxy?(url: string | URL): boolean;
+  getProxyOptions?(targetUrl?: string): ProxyOptions | undefined;
 }
+

@@ -307,4 +307,226 @@ describe('FetchHttpClient', () => {
       if (origall !== undefined) process.env.all_proxy = origall; else delete process.env.all_proxy;
     }
   });
+
+  describe('NO_PROXY / no_proxy support', () => {
+    const origNoProxy = process.env.NO_PROXY;
+    const origno_proxy = process.env.no_proxy;
+    const origHttps = process.env.HTTPS_PROXY;
+
+    beforeEach(() => {
+      mockFetch = vi.fn();
+    });
+
+    it('identifies bypassed URLs using NO_PROXY environment variable', () => {
+      delete process.env.no_proxy;
+      process.env.NO_PROXY = 'glpi.corp.internal, 127.0.0.1, .example.com';
+      try {
+        const client = new FetchHttpClient({
+          proxy: 'http://proxy.corp:8080',
+          fetch: mockFetch,
+        });
+
+        expect(client.shouldBypassProxy('https://glpi.corp.internal/api.php')).toBe(true);
+        expect(client.shouldBypassProxy('http://127.0.0.1:8080')).toBe(true);
+        expect(client.shouldBypassProxy('https://api.example.com/v2')).toBe(true);
+        expect(client.shouldBypassProxy('https://example.com/v2')).toBe(true);
+        expect(client.shouldBypassProxy('https://other.domain.com/v2')).toBe(false);
+      } finally {
+        if (origNoProxy !== undefined) process.env.NO_PROXY = origNoProxy; else delete process.env.NO_PROXY;
+      }
+    });
+
+    it('identifies bypassed URLs using lowercase no_proxy environment variable', () => {
+      delete process.env.NO_PROXY;
+      process.env.no_proxy = 'glpi.test, localhost';
+      try {
+        const client = new FetchHttpClient({
+          proxy: 'http://proxy.corp:8080',
+          fetch: mockFetch,
+        });
+
+        expect(client.shouldBypassProxy('https://glpi.test/api.php')).toBe(true);
+        expect(client.shouldBypassProxy('http://localhost:3000')).toBe(true);
+        expect(client.shouldBypassProxy('https://other.test/api.php')).toBe(false);
+      } finally {
+        if (origno_proxy !== undefined) process.env.no_proxy = origno_proxy; else delete process.env.no_proxy;
+        if (origNoProxy !== undefined) process.env.NO_PROXY = origNoProxy;
+      }
+    });
+
+    it('supports wildcard * in NO_PROXY', () => {
+      delete process.env.no_proxy;
+      process.env.NO_PROXY = '*';
+      try {
+        const client = new FetchHttpClient({
+          proxy: 'http://proxy.corp:8080',
+          fetch: mockFetch,
+        });
+
+        expect(client.shouldBypassProxy('https://anywhere.com')).toBe(true);
+        expect(client.shouldBypassProxy('http://192.168.1.1')).toBe(true);
+      } finally {
+        if (origNoProxy !== undefined) process.env.NO_PROXY = origNoProxy; else delete process.env.NO_PROXY;
+        if (origno_proxy !== undefined) process.env.no_proxy = origno_proxy;
+      }
+    });
+
+    it('matches port-specific rules in NO_PROXY', () => {
+      delete process.env.no_proxy;
+      process.env.NO_PROXY = 'glpi.test:8443, 127.0.0.1:3000';
+      try {
+        const client = new FetchHttpClient({
+          proxy: 'http://proxy.corp:8080',
+          fetch: mockFetch,
+        });
+
+        expect(client.shouldBypassProxy('https://glpi.test:8443/api')).toBe(true);
+        expect(client.shouldBypassProxy('https://glpi.test/api')).toBe(false);
+        expect(client.shouldBypassProxy('http://127.0.0.1:3000/api')).toBe(true);
+        expect(client.shouldBypassProxy('http://127.0.0.1:8080/api')).toBe(false);
+      } finally {
+        if (origNoProxy !== undefined) process.env.NO_PROXY = origNoProxy; else delete process.env.NO_PROXY;
+        if (origno_proxy !== undefined) process.env.no_proxy = origno_proxy;
+      }
+    });
+
+    it('matches IPv4 CIDR blocks in NO_PROXY', () => {
+      delete process.env.no_proxy;
+      process.env.NO_PROXY = '192.168.0.0/16, 10.0.0.0/8';
+      try {
+        const client = new FetchHttpClient({
+          proxy: 'http://proxy.corp:8080',
+          fetch: mockFetch,
+        });
+
+        expect(client.shouldBypassProxy('http://192.168.1.50/api')).toBe(true);
+        expect(client.shouldBypassProxy('http://192.168.200.1/api')).toBe(true);
+        expect(client.shouldBypassProxy('http://10.1.2.3/api')).toBe(true);
+        expect(client.shouldBypassProxy('http://172.16.0.1/api')).toBe(false);
+      } finally {
+        if (origNoProxy !== undefined) process.env.NO_PROXY = origNoProxy; else delete process.env.NO_PROXY;
+        if (origno_proxy !== undefined) process.env.no_proxy = origno_proxy;
+      }
+    });
+
+    it('matches IPv6 addresses in NO_PROXY', () => {
+      delete process.env.no_proxy;
+      process.env.NO_PROXY = '::1, [2001:db8::1]';
+      try {
+        const client = new FetchHttpClient({
+          proxy: 'http://proxy.corp:8080',
+          fetch: mockFetch,
+        });
+
+        expect(client.shouldBypassProxy('http://[::1]:8080/api')).toBe(true);
+        expect(client.shouldBypassProxy('http://[2001:db8::1]:8080/api')).toBe(true);
+        expect(client.shouldBypassProxy('http://[2001:db8::2]:8080/api')).toBe(false);
+      } finally {
+        if (origNoProxy !== undefined) process.env.NO_PROXY = origNoProxy; else delete process.env.NO_PROXY;
+        if (origno_proxy !== undefined) process.env.no_proxy = origno_proxy;
+      }
+    });
+
+    it('is case-insensitive for hostnames and rules', () => {
+      delete process.env.no_proxy;
+      process.env.NO_PROXY = 'GLPI.CORP.LOCAL';
+      try {
+        const client = new FetchHttpClient({
+          proxy: 'http://proxy.corp:8080',
+          fetch: mockFetch,
+        });
+
+        expect(client.shouldBypassProxy('https://glpi.corp.local/api')).toBe(true);
+        expect(client.shouldBypassProxy('https://GLPI.corp.local/api')).toBe(true);
+      } finally {
+        if (origNoProxy !== undefined) process.env.NO_PROXY = origNoProxy; else delete process.env.NO_PROXY;
+        if (origno_proxy !== undefined) process.env.no_proxy = origno_proxy;
+      }
+    });
+
+    it('allows programmatic noProxy in HttpClientConfig overriding env', () => {
+      delete process.env.no_proxy;
+      process.env.NO_PROXY = 'from-env.test';
+      try {
+        const client = new FetchHttpClient({
+          proxy: 'http://proxy.corp:8080',
+          noProxy: ['programmatic.test', '.custom.internal'],
+          fetch: mockFetch,
+        });
+
+        expect(client.shouldBypassProxy('https://programmatic.test/api')).toBe(true);
+        expect(client.shouldBypassProxy('https://sub.custom.internal/api')).toBe(true);
+        expect(client.shouldBypassProxy('https://from-env.test/api')).toBe(false);
+      } finally {
+        if (origNoProxy !== undefined) process.env.NO_PROXY = origNoProxy; else delete process.env.NO_PROXY;
+        if (origno_proxy !== undefined) process.env.no_proxy = origno_proxy;
+      }
+    });
+
+    it('getProxyOptions(targetUrl) returns undefined for bypassed target and options for non-bypassed target', () => {
+      delete process.env.no_proxy;
+      process.env.NO_PROXY = 'internal.glpi.test';
+      try {
+        const client = new FetchHttpClient({
+          proxy: 'http://corp-proxy:8080',
+          fetch: mockFetch,
+        });
+
+        expect(client.getProxyOptions('https://internal.glpi.test/api.php')).toBeUndefined();
+        expect(client.getProxyOptions('https://external.glpi.test/api.php')).toEqual({
+          url: 'http://corp-proxy:8080',
+        });
+      } finally {
+        if (origNoProxy !== undefined) process.env.NO_PROXY = origNoProxy; else delete process.env.NO_PROXY;
+        if (origno_proxy !== undefined) process.env.no_proxy = origno_proxy;
+      }
+    });
+
+    it('omits proxy dispatcher when request URL matches NO_PROXY', async () => {
+      delete process.env.no_proxy;
+      process.env.NO_PROXY = 'internal.glpi.test';
+      try {
+        const dummyDispatcher = { mock: 'dispatcher' };
+        const client = new FetchHttpClient({
+          baseUrl: 'https://internal.glpi.test/api.php/v2',
+          proxy: 'http://corp-proxy:8080',
+          dispatcher: dummyDispatcher,
+          fetch: mockFetch,
+        });
+
+        mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+        await client.request({ method: 'GET', path: '/Assistance/Ticket' });
+
+        const call = mockFetch.mock.calls[0];
+        expect(call[1].dispatcher).toBeUndefined();
+      } finally {
+        if (origNoProxy !== undefined) process.env.NO_PROXY = origNoProxy; else delete process.env.NO_PROXY;
+        if (origno_proxy !== undefined) process.env.no_proxy = origno_proxy;
+      }
+    });
+
+    it('attaches proxy dispatcher when request URL does not match NO_PROXY', async () => {
+      delete process.env.no_proxy;
+      process.env.NO_PROXY = 'some-other-host.test';
+      try {
+        const dummyDispatcher = { mock: 'dispatcher' };
+        const client = new FetchHttpClient({
+          baseUrl: 'https://external.glpi.test/api.php/v2',
+          proxy: 'http://corp-proxy:8080',
+          dispatcher: dummyDispatcher,
+          fetch: mockFetch,
+        });
+
+        mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+        await client.request({ method: 'GET', path: '/Assistance/Ticket' });
+
+        const call = mockFetch.mock.calls[0];
+        expect(call[1].dispatcher).toBe(dummyDispatcher);
+      } finally {
+        if (origNoProxy !== undefined) process.env.NO_PROXY = origNoProxy; else delete process.env.NO_PROXY;
+        if (origno_proxy !== undefined) process.env.no_proxy = origno_proxy;
+      }
+    });
+  });
 });
+

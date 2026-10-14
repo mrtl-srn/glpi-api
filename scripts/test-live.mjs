@@ -87,6 +87,7 @@ const clientSecret = process.env.GLPI_CLIENT_SECRET;
 const username = process.env.GLPI_USERNAME;
 const password = process.env.GLPI_PASSWORD;
 const proxy = process.env.GLPI_PROXY || process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+const noProxy = process.env.GLPI_NO_PROXY || process.env.NO_PROXY || process.env.no_proxy;
 const entity = process.env.GLPI_ENTITY;
 const profile = process.env.GLPI_PROFILE;
 const language = process.env.GLPI_LANGUAGE;
@@ -145,6 +146,9 @@ async function runLiveTest() {
   if (proxy) {
     console.log(`${fmt.gray}Proxy:              ${proxy}${fmt.reset}`);
   }
+  if (noProxy) {
+    console.log(`${fmt.gray}No Proxy:           ${noProxy}${fmt.reset}`);
+  }
   console.log('');
 
   // Build auth configuration
@@ -184,6 +188,7 @@ async function runLiveTest() {
     auth: authConfig,
     proxy: proxy || undefined,
     useEnvProxy: !proxy,
+    noProxy: noProxy || undefined,
     entity: entity ? Number(entity) : undefined,
     profile: profile ? Number(profile) : undefined,
     language: language || undefined,
