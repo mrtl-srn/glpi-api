@@ -273,6 +273,9 @@ const client = new GlpiClient({
 });
 ```
 
+> **Note on GLPI 11 support:** In GLPI 11, the `client_credentials` grant is specifically restricted by GLPI core to agent inventory submissions (scope: `inventory`). Interacting with general REST resources (Tickets, Users, Computers, Documents, etc.) requires an authenticated GLPI user account via the `password` or `authorization_code` grant.
+
+
 ### Token Storage
 
 By default, tokens are cached in memory. You can supply a custom token storage implementing `ITokenStorage` (e.g., Redis, database, encrypted file system):

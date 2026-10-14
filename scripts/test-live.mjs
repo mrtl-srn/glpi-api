@@ -177,6 +177,9 @@ async function runLiveTest() {
       clientSecret,
       scope: process.env.GLPI_SCOPE || 'all',
     };
+    console.log(`${fmt.yellow}[!] Warning: GLPI 11 only supports 'client_credentials' for inventory agent submission.${fmt.reset}`);
+    console.log(`${fmt.yellow}    Accessing REST resources (User/Me, Tickets, Computers) requires user authentication ('password' grant).${fmt.reset}`);
+    console.log(`${fmt.yellow}    If requests fail with HTTP 401, set GLPI_AUTH_TYPE=password, GLPI_USERNAME, and GLPI_PASSWORD.${fmt.reset}\n`);
   } else {
     console.error(`${fmt.red}[ERROR] Unsupported GLPI_AUTH_TYPE: ${authType}${fmt.reset}`);
     process.exit(1);
@@ -214,6 +217,15 @@ async function runLiveTest() {
       console.error(`\n    ${fmt.red}↳ Error: ${err.message}${fmt.reset}`);
       if (err.status) console.error(`    ${fmt.red}↳ HTTP Status: ${err.status}${fmt.reset}`);
       if (err.body) console.error(`    ${fmt.red}↳ Response Body: ${JSON.stringify(err.body)}${fmt.reset}`);
+      if (err.status === 401 && authType === 'client_credentials') {
+        console.error(`\n    ${fmt.yellow}↳ DIAGNOSTIC: GLPI 11 rejected the request with 401 Unauthorized.${fmt.reset}`);
+        console.error(`    ${fmt.yellow}  In GLPI 11 REST API, 'client_credentials' tokens are only valid for inventory agent submissions.${fmt.reset}`);
+        console.error(`    ${fmt.yellow}  All REST resources (Users, Tickets, Computers, etc.) require an authenticated GLPI user account.${fmt.reset}`);
+        console.error(`    ${fmt.yellow}  To fix this, edit .env to use 'password' grant:${fmt.reset}`);
+        console.error(`      ${fmt.cyan}GLPI_AUTH_TYPE=password${fmt.reset}`);
+        console.error(`      ${fmt.cyan}GLPI_USERNAME=<your_glpi_username>${fmt.reset}`);
+        console.error(`      ${fmt.cyan}GLPI_PASSWORD=<your_glpi_password>${fmt.reset}\n`);
+      }
       steps.push({ name, status: 'FAILED', elapsed, error: err });
       throw err;
     }
