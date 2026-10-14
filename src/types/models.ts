@@ -12,6 +12,16 @@ export enum TicketStatus {
   PENDING = 4,
   SOLVED = 5,
   CLOSED = 6,
+  WAITING_VALIDATION = 10,
+}
+
+/**
+ * Detailed ticket status object returned by GLPI REST API.
+ */
+export interface TicketStatusInfo {
+  id: TicketStatus | number;
+  name?: string;
+  [key: string]: unknown;
 }
 
 /**
@@ -44,7 +54,7 @@ export interface GlpiTicket {
   id: number;
   name?: string;
   content?: string;
-  status?: TicketStatus | number;
+  status?: TicketStatusInfo | TicketStatus | number;
   urgency?: PriorityLevel;
   impact?: PriorityLevel;
   priority?: PriorityLevel;
@@ -84,7 +94,7 @@ export interface GlpiComputer {
   id: number;
   name?: string;
   comment?: string;
-  status?: number;
+  status?: { id: number; name?: string; [key: string]: unknown } | number;
   entity?: number | { id: number; name?: string; [key: string]: unknown };
   is_recursive?: boolean | number;
   manufacturer?: number | { id: number; name?: string; [key: string]: unknown };
