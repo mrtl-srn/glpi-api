@@ -3,3 +3,11 @@ coverage
 coverage.lcov
 yarn-error.log
 tmp
+.agents
+dist
+.superpowers
+.env
+.env.local
+.devcontainer
+api-openapi.json
+api-*.md
