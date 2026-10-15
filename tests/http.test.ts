@@ -528,5 +528,93 @@ describe('FetchHttpClient', () => {
       }
     });
   });
+
+  describe('Security: Sensitive credential redaction in error options (VULN-01)', () => {
+    it('redacts sensitive keys in object body and headers attached to thrown error options', async () => {
+      mockFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: 'invalid_grant', error_description: 'Bad credentials' }), {
+          status: 400,
+          statusText: 'Bad Request',
+          headers: { 'content-type': 'application/json' },
+        })
+      );
+
+      const client = new FetchHttpClient({
+        baseUrl: 'https://glpi.test/api.php/v2',
+        fetch: mockFetch,
+      });
+
+      let thrownErr: any;
+      try {
+        await client.request({
+          method: 'POST',
+          path: '/token',
+          headers: {
+            Authorization: 'Bearer secret_token_123',
+            'App-Token': 'app_secret_abc',
+            'Custom-Header': 'keep-me',
+          },
+          body: {
+            grant_type: 'password',
+            username: 'glpi_user',
+            password: 'super_secret_password',
+            client_secret: 'client_secret_xyz',
+            nested: {
+              token: 'nested_token_val',
+              safe: 'visible',
+            },
+          },
+        });
+      } catch (err) {
+        thrownErr = err;
+      }
+
+      expect(thrownErr).toBeDefined();
+      expect(thrownErr.options).toBeDefined();
+      expect(thrownErr.options.body.username).toBe('glpi_user');
+      expect(thrownErr.options.body.grant_type).toBe('password');
+      expect(thrownErr.options.body.password).toBe('[REDACTED]');
+      expect(thrownErr.options.body.client_secret).toBe('[REDACTED]');
+      expect(thrownErr.options.body.nested.token).toBe('[REDACTED]');
+      expect(thrownErr.options.body.nested.safe).toBe('visible');
+
+      // Check headers redaction
+      const headers = thrownErr.options.headers;
+      expect(headers['Custom-Header']).toBe('keep-me');
+      expect(headers['Authorization'] ?? headers['authorization']).toBe('[REDACTED]');
+      expect(headers['App-Token'] ?? headers['app-token']).toBe('[REDACTED]');
+    });
+
+    it('redacts sensitive parameters when body is a URL-encoded string or JSON string', async () => {
+      mockFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: 'invalid_client' }), {
+          status: 401,
+          statusText: 'Unauthorized',
+        })
+      );
+
+      const client = new FetchHttpClient({
+        baseUrl: 'https://glpi.test/api.php/v2',
+        fetch: mockFetch,
+      });
+
+      let thrownErr: any;
+      try {
+        await client.request({
+          method: 'POST',
+          path: '/token',
+          body: 'grant_type=password&username=admin&password=SecretPass123!&client_secret=SecretXYZ',
+        });
+      } catch (err) {
+        thrownErr = err;
+      }
+
+      expect(thrownErr).toBeDefined();
+      expect(thrownErr.options.body).not.toContain('SecretPass123!');
+      expect(thrownErr.options.body).not.toContain('SecretXYZ');
+      expect(thrownErr.options.body).toContain('username=admin');
+      expect(thrownErr.options.body).toContain('password=%5BREDACTED%5D');
+    });
+  });
 });
 

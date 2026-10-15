@@ -389,15 +389,11 @@ describe('Auth Layer', () => {
       }
     });
 
-    it('logout clears stored token', async () => {
+    it('logout clears credentials and token from memory (VULN-06)', async () => {
       (mockHttp.request as any)
         .mockResolvedValueOnce({
           status: 200,
           data: { access_token: 'tok-1', expires_in: 3600 },
-        })
-        .mockResolvedValueOnce({
-          status: 200,
-          data: { access_token: 'tok-2', expires_in: 3600 },
         });
 
       const provider = new PasswordAuthProvider({
@@ -408,8 +404,8 @@ describe('Auth Layer', () => {
 
       expect(await provider.getAccessToken()).toBe('tok-1');
       await provider.logout();
-      // After logout, token must be re-fetched with credentials
-      expect(await provider.getAccessToken()).toBe('tok-2');
+      // After logout, credentials are wiped from memory; subsequent calls throw GlpiAuthenticationError
+      await expect(provider.getAccessToken()).rejects.toThrow(GlpiAuthenticationError);
     });
 
     it('TokenManager getStoredToken returns a cloned object to prevent cache mutation', async () => {

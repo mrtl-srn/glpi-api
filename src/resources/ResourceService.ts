@@ -163,7 +163,7 @@ export class ResourceService<T = unknown> implements IResourceService<T> {
     const headers = this.buildHeaders(options);
     const response = await this.http.request<T>({
       method: 'GET',
-      path: `${this.basePath}/${id}`,
+      path: `${this.basePath}/${encodeURIComponent(String(id))}`,
       headers,
       signal: options?.signal,
     });
@@ -214,7 +214,7 @@ export class ResourceService<T = unknown> implements IResourceService<T> {
     const headers = this.buildHeaders(options);
     const response = await this.http.request<T>({
       method,
-      path: `${this.basePath}/${id}`,
+      path: `${this.basePath}/${encodeURIComponent(String(id))}`,
       body: data,
       headers,
       signal: options?.signal,
@@ -246,7 +246,7 @@ export class ResourceService<T = unknown> implements IResourceService<T> {
 
     await this.http.request<void>({
       method: 'DELETE',
-      path: `${this.basePath}/${id}`,
+      path: `${this.basePath}/${encodeURIComponent(String(id))}`,
       headers,
       params: Object.keys(queryParams).length > 0 ? queryParams : undefined,
       signal: options?.signal,

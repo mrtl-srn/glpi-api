@@ -23,8 +23,8 @@ export class PasswordAuthProvider implements IAuthProvider {
   private readonly tokenEndpoint: string;
   private readonly clientId?: string;
   private readonly clientSecret?: string;
-  private readonly username: string;
-  private readonly password: string;
+  private username: string;
+  private password: string;
   private readonly scope?: string;
   private readonly tokenManager: TokenManager;
 
@@ -54,10 +54,20 @@ export class PasswordAuthProvider implements IAuthProvider {
   }
 
   async logout(): Promise<void> {
+    this.username = '';
+    this.password = '';
     await this.tokenManager.clearToken();
   }
 
   private async fetchToken(): Promise<TokenFetchResult> {
+    if (!this.username || !this.password) {
+      throw new GlpiAuthenticationError(
+        'NO_CREDENTIALS',
+        undefined,
+        'Cannot authenticate: credentials have been cleared or provider has been logged out'
+      );
+    }
+
     const body: Record<string, string> = {
       grant_type: 'password',
       username: this.username,

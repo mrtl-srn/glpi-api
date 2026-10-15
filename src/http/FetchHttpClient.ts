@@ -104,6 +104,121 @@ function matchNoProxyRule(url: URL, rule: string): boolean {
   return false;
 }
 
+const SENSITIVE_KEY_PATTERN =
+  /^(authorization|password|client[-_]?secret|secret|token|access[-_]?token|refresh[-_]?token|code|user[-_]?token|app[-_]?token)$/i;
+
+function redactSensitiveObject(obj: unknown): unknown {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj !== 'object') return obj;
+
+  if (Array.isArray(obj)) {
+    return obj.map((item) => redactSensitiveObject(item));
+  }
+
+  // Handle plain objects
+  if (obj.constructor === Object || !obj.constructor) {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (SENSITIVE_KEY_PATTERN.test(key)) {
+        result[key] = '[REDACTED]';
+      } else if (typeof value === 'object' && value !== null) {
+        result[key] = redactSensitiveObject(value);
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
+  }
+
+  return obj;
+}
+
+function sanitizeHeaders(headers?: HttpRequestOptions['headers']): Record<string, string> | undefined {
+  if (!headers) return undefined;
+
+  const result: Record<string, string> = {};
+  if (headers instanceof Headers) {
+    headers.forEach((value, key) => {
+      result[key] = SENSITIVE_KEY_PATTERN.test(key) ? '[REDACTED]' : value;
+    });
+  } else if (Array.isArray(headers)) {
+    for (const [key, value] of headers) {
+      result[key] = SENSITIVE_KEY_PATTERN.test(key) ? '[REDACTED]' : value;
+    }
+  } else if (typeof headers === 'object') {
+    for (const [key, value] of Object.entries(headers)) {
+      result[key] = SENSITIVE_KEY_PATTERN.test(key) ? '[REDACTED]' : String(value);
+    }
+  }
+  return result;
+}
+
+function sanitizeBody(body: unknown): unknown {
+  if (!body) return body;
+
+  if (typeof body === 'string') {
+    const trimmed = body.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return JSON.stringify(redactSensitiveObject(parsed));
+      } catch {
+        // Fall through if not valid JSON
+      }
+    }
+
+    if (
+      trimmed.includes('=') &&
+      (trimmed.includes('&') || SENSITIVE_KEY_PATTERN.test(trimmed.split('=')[0]))
+    ) {
+      try {
+        const params = new URLSearchParams(trimmed);
+        let mutated = false;
+        for (const key of Array.from(params.keys())) {
+          if (SENSITIVE_KEY_PATTERN.test(key)) {
+            params.set(key, '[REDACTED]');
+            mutated = true;
+          }
+        }
+        if (mutated) {
+          return params.toString();
+        }
+      } catch {
+        // Fall through
+      }
+    }
+    return body;
+  }
+
+  if (body instanceof URLSearchParams) {
+    const copy = new URLSearchParams(body);
+    for (const key of Array.from(copy.keys())) {
+      if (SENSITIVE_KEY_PATTERN.test(key)) {
+        copy.set(key, '[REDACTED]');
+      }
+    }
+    return copy;
+  }
+
+  if (typeof body === 'object') {
+    return redactSensitiveObject(body);
+  }
+
+  return body;
+}
+
+/**
+ * Sanitizes request options by redacting sensitive headers and body fields
+ * before attaching options to thrown errors or logs.
+ */
+export function sanitizeRequestOptions(options: HttpRequestOptions): HttpRequestOptions {
+  return {
+    ...options,
+    headers: sanitizeHeaders(options.headers),
+    body: sanitizeBody(options.body),
+  };
+}
+
 /**
  * Native fetch-based implementation of IHttpClient with proxy, interceptors, and error mapping.
  */
@@ -282,6 +397,13 @@ export class FetchHttpClient implements IHttpClient {
       }
     }
     return undefined;
+  }
+
+  /**
+   * Returns base URL configured for this client instance.
+   */
+  getBaseUrl(): string {
+    return this.baseUrl;
   }
 
   /**
@@ -510,7 +632,7 @@ export class FetchHttpClient implements IHttpClient {
         errorToThrow = new GlpiHttpError(response.status, response.statusText, finalUrl, errorBody, message);
       }
 
-      (errorToThrow as any).options = options;
+      (errorToThrow as any).options = sanitizeRequestOptions(options);
       throw errorToThrow;
     }
 
