@@ -1,7 +1,7 @@
 {
   "name": "glpi-api",
   "version": "2.0.0",
-  "description": "Node module for GLPI REST API",
+  "description": "Node module for GLPI REST and GraphQL API (v2)",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
@@ -21,7 +21,7 @@
   "files": [
     "dist"
   ],
-  "author": "Martial Séron <martial.seron@alturing.eu>",
+  "author": "Martial Séron <martial.seron@gmail.com>",
   "license": "MIT",
   "scripts": {
     "build": "tsup",
@@ -32,12 +32,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MartialSeron/glpi-api.git"
+    "url": "git+https://github.com/mrtl-srn/glpi-api.git"
   },
   "bugs": {
-    "url": "https://github.com/MartialSeron/glpi-api/issues"
+    "url": "https://github.com/mrtl-srn/glpi-api/issues"
   },
-  "homepage": "https://github.com/MartialSeron/glpi-api#readme",
+  "homepage": "https://github.com/mrtl-srn/glpi-api#readme",
   "devDependencies": {
     "@types/node": "^22.7.5",
     "tsup": "^8.3.5",
