@@ -36,10 +36,10 @@ Complete modernization and rewrite of `glpi-api` into 100% strict TypeScript for
   - Full support for 14 GLPI comparison operators: `eq`, `neq`, `gt`, `ge`, `lt`, `le`, `like`, `ilike`, `in`, `out`, `isNull`, `isNotNull`, `empty`, `notEmpty`.
   - Logical conjunctions (`and`, `or`), nested group parentheses with balance checking, and automatic FIQL value escaping/quoting.
 - **Domain Resource Services**:
-  - `TicketResource`: Collection listing, retrieval, creation, updates, deletion/purge, `addFollowup()`, `getTimeline()`, and `assign()`.
+  - `TicketResource`: Collection listing, retrieval, creation, updates, deletion/purge, `addFollowup()`, `getTimeline()`, `assign()`, and `addDocument()`.
   - `ComputerResource`: Hardware asset querying and management.
   - `UserResource`: User management, `me()` current user lookup, and `getSession()` session inspection.
-  - `DocumentResource`: Multipart upload supporting `Buffer`, `Uint8Array`, `Blob`, and `Stream` with metadata attachment, plus binary `download()` with RFC 5987 / RFC 6266 filename decoding.
+  - `DocumentResource`: Multipart upload supporting file paths, `Buffer`, `Uint8Array`, `Blob`, and `Stream` with metadata attachment, plus binary `download()` with RFC 5987 / RFC 6266 filename decoding.
 - **Generic & Plugin Resource Extensibility**:
   - Access any core or plugin resource using `client.resource<T>('ItemType')`.
   - Custom route mapping registry with `client.registerResource('Alias', 'Plugin/Path')`.

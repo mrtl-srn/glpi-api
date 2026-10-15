@@ -407,6 +407,9 @@ await client.tickets.addFollowup(1042, 'Technician dispatched on site.');
 // Assign an actor (technician, group, or supplier)
 await client.tickets.assign(1042, 15, 'user');
 
+// Link a document to the ticket timeline (accepts ID or object)
+await client.tickets.addDocument(1042, 592518);
+
 // Retrieve ticket timeline (followups, tasks, solutions)
 const timeline = await client.tickets.getTimeline(1042);
 
@@ -447,11 +450,21 @@ const session = await client.users.getSession();
 
 ### Documents (`client.documents`)
 
-Upload files of any size via multipart/form-data from `Buffer`, `Uint8Array`, `Blob`, `string`, or `Stream`:
+Upload files of any size via multipart/form-data from a local file path string, or from in-memory `Buffer`, `Uint8Array`, `Blob`, `string`, or `Stream`:
+
+> [!NOTE]
+> **Upstream GLPI Notice**: Binary file upload via the High-Level REST API (`client.documents.upload()`) is currently pending upstream merge in GLPI core ([glpi-project/glpi#25251](https://github.com/glpi-project/glpi/pull/25251)). The client implementation already conforms to the upcoming API standard and will work automatically once merged in GLPI. All other Document operations (fetching, downloading existing files, linking to tickets, and metadata management) are fully functional.
 
 ```typescript
-// Upload a file
-const upload = await client.documents.upload(
+// Upload a file using a file path (auto-detects filename and MIME type)
+const upload = await client.documents.upload('./attachments/report.pdf', {
+  name: 'Hardware Diagnostic Report',
+  items_id: 1042,
+  itemtype: 'Ticket',
+});
+
+// Or upload from in-memory Buffer/Blob/Stream:
+const bufferUpload = await client.documents.upload(
   {
     content: Buffer.from('Diagnostic report logs...'),
     filename: 'report.txt',
