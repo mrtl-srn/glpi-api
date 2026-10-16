@@ -125,4 +125,48 @@ describe('RSQL Query Builder', () => {
       .build();
     expect(res).toBe('x==1');
   });
+
+  describe('Security: RSQL Field Name Validation (VULN-03)', () => {
+    it('accepts valid field identifiers including underscores, hyphens, and dots', () => {
+      expect(rsql().eq('status', 1).build()).toBe('status==1');
+      expect(rsql().eq('itilcategories_id', 42).build()).toBe('itilcategories_id==42');
+      expect(rsql().eq('custom-field', 'val').build()).toBe('custom-field==val');
+      expect(rsql().eq('user.name', 'alice').build()).toBe('user.name==alice');
+      expect(rsql().eq('entities_id.completename', 'Root').build()).toBe('entities_id.completename==Root');
+    });
+
+    it('rejects field names containing RSQL control operators, spaces, or quotes', () => {
+      const invalidFields = [
+        'status;id=gt=0',
+        'field,other',
+        'field==value',
+        'field=gt=1',
+        'bad field',
+        'field"name',
+        'field\'name',
+        'field(0)',
+        'field/name',
+        'field\\name',
+        '',
+      ];
+
+      for (const field of invalidFields) {
+        expect(() => rsql().eq(field, 1)).toThrow();
+        expect(() => rsql().neq(field, 1)).toThrow();
+        expect(() => rsql().gt(field, 1)).toThrow();
+        expect(() => rsql().ge(field, 1)).toThrow();
+        expect(() => rsql().lt(field, 1)).toThrow();
+        expect(() => rsql().le(field, 1)).toThrow();
+        expect(() => rsql().like(field, 'test')).toThrow();
+        expect(() => rsql().ilike(field, 'test')).toThrow();
+        expect(() => rsql().in(field, [1, 2])).toThrow();
+        expect(() => rsql().out(field, [1, 2])).toThrow();
+        expect(() => rsql().isNull(field)).toThrow();
+        expect(() => rsql().isNotNull(field)).toThrow();
+        expect(() => rsql().empty(field)).toThrow();
+        expect(() => rsql().notEmpty(field)).toThrow();
+      }
+    });
+  });
 });
+

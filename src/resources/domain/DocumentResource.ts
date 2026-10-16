@@ -31,10 +31,33 @@ function getHeaderValue(
 }
 
 /**
+ * Sanitizes an extracted filename to prevent path traversal and control character injection.
+ */
+export function sanitizeFilename(filename?: string): string | undefined {
+  if (!filename || typeof filename !== 'string') return undefined;
+
+  // Strip null bytes and non-printable control characters
+  let clean = filename.replace(/[\x00-\x1f\x7f]/g, '');
+
+  // Strip directory traversal path segments (both Unix / and Windows \)
+  clean = clean.replace(/^.*[\\/]/, '');
+
+  // Strip leading dots or whitespace that could lead to relative/hidden file confusion
+  clean = clean.replace(/^\.+/, '').trim();
+
+  // If empty or only dots, discard
+  if (!clean || clean === '.' || clean === '..') {
+    return undefined;
+  }
+
+  return clean;
+}
+
+/**
  * Parses the filename parameter from a Content-Disposition header value,
  * supporting both RFC 5987 / RFC 6266 (filename*=UTF-8''...) and standard syntax.
  */
-function parseContentDispositionFilename(headerValue?: string): string | undefined {
+export function parseContentDispositionFilename(headerValue?: string): string | undefined {
   if (!headerValue) return undefined;
 
   // RFC 5987 / RFC 6266: filename*=charset'lang'encoded_value
@@ -45,22 +68,22 @@ function parseContentDispositionFilename(headerValue?: string): string | undefin
       if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
         val = val.slice(1, -1);
       }
-      return decodeURIComponent(val);
+      return sanitizeFilename(decodeURIComponent(val));
     } catch {
-      return rfc5987Match[1].trim();
+      return sanitizeFilename(rfc5987Match[1].trim());
     }
   }
 
   // Quoted filename: filename="abc.xyz"
   const quotedMatch = headerValue.match(/filename\s*=\s*"([^"]+)"/i);
   if (quotedMatch?.[1]) {
-    return quotedMatch[1];
+    return sanitizeFilename(quotedMatch[1]);
   }
 
   // Unquoted filename: filename=abc.xyz
   const unquotedMatch = headerValue.match(/filename\s*=\s*([^;\s]+)/i);
   if (unquotedMatch?.[1]) {
-    return unquotedMatch[1];
+    return sanitizeFilename(unquotedMatch[1]);
   }
 
   return undefined;
@@ -251,7 +274,7 @@ export class DocumentResource extends ResourceService<GlpiDocument> {
 
     const response = await this.http.request<ArrayBuffer | Response | Blob | Uint8Array | string>({
       method: 'GET',
-      path: `${this.basePath}/${id}/Download`,
+      path: `${this.basePath}/${encodeURIComponent(String(id))}/Download`,
       headers,
       signal: options?.signal,
       rawResponse: true,

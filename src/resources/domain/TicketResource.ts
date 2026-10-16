@@ -46,7 +46,7 @@ export class TicketResource extends ResourceService<GlpiTicket> {
 
     const response = await this.http.request<CreateResult>({
       method: 'POST',
-      path: `${this.basePath}/${ticketId}/Timeline/Followup`,
+      path: `${this.basePath}/${encodeURIComponent(String(ticketId))}/Timeline/Followup`,
       body,
       headers,
       signal: options?.signal,
@@ -70,7 +70,7 @@ export class TicketResource extends ResourceService<GlpiTicket> {
 
     const response = await this.http.request<TicketTimelineItem[]>({
       method: 'GET',
-      path: `${this.basePath}/${ticketId}/Timeline`,
+      path: `${this.basePath}/${encodeURIComponent(String(ticketId))}/Timeline`,
       headers,
       signal: options?.signal,
     });
@@ -99,7 +99,7 @@ export class TicketResource extends ResourceService<GlpiTicket> {
 
     const response = await this.http.request<CreateResult>({
       method: 'POST',
-      path: `${this.basePath}/${ticketId}/TeamMember`,
+      path: `${this.basePath}/${encodeURIComponent(String(ticketId))}/TeamMember`,
       body: {
         id: Number(actorId),
         type: capitalizedType,
@@ -138,7 +138,7 @@ export class TicketResource extends ResourceService<GlpiTicket> {
 
     const response = await this.http.request<CreateResult>({
       method: 'POST',
-      path: `${this.basePath}/${ticketId}/Timeline/Document`,
+      path: `${this.basePath}/${encodeURIComponent(String(ticketId))}/Timeline/Document`,
       body: {
         id: docId,
         documents_id: docId,

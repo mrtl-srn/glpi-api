@@ -100,5 +100,6 @@ export interface IHttpClient {
   removeHeader(name: string): void;
   shouldBypassProxy?(url: string | URL): boolean;
   getProxyOptions?(targetUrl?: string): ProxyOptions | undefined;
+  getBaseUrl?(): string;
 }
 

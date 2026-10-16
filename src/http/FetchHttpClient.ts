@@ -27,7 +27,73 @@ function ipToInt(ip: string): number | null {
   return res;
 }
 
+function ip6ToBigInt(ip: string): bigint | null {
+  ip = ip.trim().replace(/^\[|\]$/g, '');
+  if (!ip || ip.split('::').length > 2) return null;
+  if (ip.includes(':::')) return null;
+
+  // Handle IPv4-mapped / IPv4-compatible at end (e.g. ::ffff:192.168.1.1)
+  const lastColon = ip.lastIndexOf(':');
+  if (lastColon !== -1) {
+    const lastPart = ip.slice(lastColon + 1);
+    if (lastPart.includes('.')) {
+      const v4Parts = lastPart.split('.');
+      if (v4Parts.length !== 4) return null;
+      let v4Int = 0;
+      for (let i = 0; i < 4; i++) {
+        const n = Number(v4Parts[i]);
+        if (!Number.isInteger(n) || n < 0 || n > 255) return null;
+        v4Int = ((v4Int << 8) | n) >>> 0;
+      }
+      const hi = ((v4Int >>> 16) & 0xffff).toString(16);
+      const lo = (v4Int & 0xffff).toString(16);
+      ip = ip.slice(0, lastColon + 1) + hi + ':' + lo;
+    }
+  }
+
+  let groups: string[];
+  if (ip.includes('::')) {
+    const [leftStr, rightStr] = ip.split('::');
+    const left = leftStr ? leftStr.split(':') : [];
+    const right = rightStr ? rightStr.split(':') : [];
+    if (left.length + right.length > 7) return null;
+    const zeros = 8 - (left.length + right.length);
+    groups = [...left, ...Array(zeros).fill('0'), ...right];
+  } else {
+    groups = ip.split(':');
+    if (groups.length !== 8) return null;
+  }
+
+  if (groups.length !== 8) return null;
+  let res = 0n;
+  for (const g of groups) {
+    if (!/^[0-9a-fA-F]{1,4}$/.test(g)) return null;
+    res = (res << 16n) | BigInt(parseInt(g, 16));
+  }
+  return res;
+}
+
+function matchCidr6(ip: string, cidr: string): boolean {
+  const [netStr, bitsStr] = cidr.split('/');
+  if (!netStr || !bitsStr) return false;
+  const bits = Number(bitsStr);
+  if (!Number.isInteger(bits) || bits < 0 || bits > 128) return false;
+  const targetIp = ip6ToBigInt(ip);
+  const netIp = ip6ToBigInt(netStr);
+  if (targetIp === null || netIp === null) return false;
+  if (bits === 0) return true;
+  const totalBits = 128n;
+  const mask =
+    bits === 128
+      ? (1n << totalBits) - 1n
+      : ((1n << totalBits) - 1n) ^ ((1n << (totalBits - BigInt(bits))) - 1n);
+  return (targetIp & mask) === (netIp & mask);
+}
+
 function matchCidr(ip: string, cidr: string): boolean {
+  if (cidr.includes(':') || ip.includes(':')) {
+    return matchCidr6(ip, cidr);
+  }
   const [netStr, bitsStr] = cidr.split('/');
   if (!netStr || !bitsStr) return false;
   const bits = Number(bitsStr);
@@ -60,6 +126,8 @@ function matchNoProxyRule(url: URL, rule: string): boolean {
       ruleHost = rule.slice(1, closingBracket);
       if (rule[closingBracket + 1] === ':') {
         rulePort = rule.slice(closingBracket + 2);
+      } else if (rule[closingBracket + 1] === '/') {
+        ruleHost = rule.slice(1, closingBracket) + rule.slice(closingBracket + 1);
       }
     }
   } else if (rule.includes(':') && !rule.includes('/')) {
@@ -88,6 +156,14 @@ function matchNoProxyRule(url: URL, rule: string): boolean {
     return true;
   }
 
+  if (ruleHost.includes(':') || urlHost.includes(':')) {
+    const targetIp6 = ip6ToBigInt(urlHost);
+    const ruleIp6 = ip6ToBigInt(ruleHost);
+    if (targetIp6 !== null && ruleIp6 !== null && targetIp6 === ruleIp6) {
+      return true;
+    }
+  }
+
   if (ruleHost.startsWith('*.')) {
     const suffix = ruleHost.slice(1);
     return urlHost.endsWith(suffix);
@@ -102,6 +178,121 @@ function matchNoProxyRule(url: URL, rule: string): boolean {
   }
 
   return false;
+}
+
+const SENSITIVE_KEY_PATTERN =
+  /^(authorization|password|client[-_]?secret|secret|token|access[-_]?token|refresh[-_]?token|code|user[-_]?token|app[-_]?token)$/i;
+
+function redactSensitiveObject(obj: unknown): unknown {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj !== 'object') return obj;
+
+  if (Array.isArray(obj)) {
+    return obj.map((item) => redactSensitiveObject(item));
+  }
+
+  // Handle plain objects
+  if (obj.constructor === Object || !obj.constructor) {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (SENSITIVE_KEY_PATTERN.test(key)) {
+        result[key] = '[REDACTED]';
+      } else if (typeof value === 'object' && value !== null) {
+        result[key] = redactSensitiveObject(value);
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
+  }
+
+  return obj;
+}
+
+function sanitizeHeaders(headers?: HttpRequestOptions['headers']): Record<string, string> | undefined {
+  if (!headers) return undefined;
+
+  const result: Record<string, string> = {};
+  if (headers instanceof Headers) {
+    headers.forEach((value, key) => {
+      result[key] = SENSITIVE_KEY_PATTERN.test(key) ? '[REDACTED]' : value;
+    });
+  } else if (Array.isArray(headers)) {
+    for (const [key, value] of headers) {
+      result[key] = SENSITIVE_KEY_PATTERN.test(key) ? '[REDACTED]' : value;
+    }
+  } else if (typeof headers === 'object') {
+    for (const [key, value] of Object.entries(headers)) {
+      result[key] = SENSITIVE_KEY_PATTERN.test(key) ? '[REDACTED]' : String(value);
+    }
+  }
+  return result;
+}
+
+function sanitizeBody(body: unknown): unknown {
+  if (!body) return body;
+
+  if (typeof body === 'string') {
+    const trimmed = body.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return JSON.stringify(redactSensitiveObject(parsed));
+      } catch {
+        // Fall through if not valid JSON
+      }
+    }
+
+    if (
+      trimmed.includes('=') &&
+      (trimmed.includes('&') || SENSITIVE_KEY_PATTERN.test(trimmed.split('=')[0]))
+    ) {
+      try {
+        const params = new URLSearchParams(trimmed);
+        let mutated = false;
+        for (const key of Array.from(params.keys())) {
+          if (SENSITIVE_KEY_PATTERN.test(key)) {
+            params.set(key, '[REDACTED]');
+            mutated = true;
+          }
+        }
+        if (mutated) {
+          return params.toString();
+        }
+      } catch {
+        // Fall through
+      }
+    }
+    return body;
+  }
+
+  if (body instanceof URLSearchParams) {
+    const copy = new URLSearchParams(body);
+    for (const key of Array.from(copy.keys())) {
+      if (SENSITIVE_KEY_PATTERN.test(key)) {
+        copy.set(key, '[REDACTED]');
+      }
+    }
+    return copy;
+  }
+
+  if (typeof body === 'object') {
+    return redactSensitiveObject(body);
+  }
+
+  return body;
+}
+
+/**
+ * Sanitizes request options by redacting sensitive headers and body fields
+ * before attaching options to thrown errors or logs.
+ */
+export function sanitizeRequestOptions(options: HttpRequestOptions): HttpRequestOptions {
+  return {
+    ...options,
+    headers: sanitizeHeaders(options.headers),
+    body: sanitizeBody(options.body),
+  };
 }
 
 /**
@@ -282,6 +473,13 @@ export class FetchHttpClient implements IHttpClient {
       }
     }
     return undefined;
+  }
+
+  /**
+   * Returns base URL configured for this client instance.
+   */
+  getBaseUrl(): string {
+    return this.baseUrl;
   }
 
   /**
@@ -510,7 +708,7 @@ export class FetchHttpClient implements IHttpClient {
         errorToThrow = new GlpiHttpError(response.status, response.statusText, finalUrl, errorBody, message);
       }
 
-      (errorToThrow as any).options = options;
+      (errorToThrow as any).options = sanitizeRequestOptions(options);
       throw errorToThrow;
     }
 

@@ -1,7 +1,7 @@
 import { GlpiAuthenticationError, GlpiError, GlpiHttpError } from './errors/index.js';
 import { FetchHttpClient } from './http/FetchHttpClient.js';
 import type { HttpRequestOptions, IHttpClient, ProxyOptions } from './http/types.js';
-import type { ILogger } from './logger/index.js';
+import { ConsoleLogger, type ILogger } from './logger/index.js';
 import {
   PasswordAuthProvider,
   AuthorizationCodeAuthProvider,
@@ -84,6 +84,32 @@ export interface EntityScope {
   recursive: boolean;
 }
 
+function isSameOrigin(targetPath: string, baseOriginOrUrl?: string): boolean {
+  if (typeof targetPath !== 'string') return true;
+  if (!targetPath.startsWith('http://') && !targetPath.startsWith('https://')) {
+    return true;
+  }
+  if (!baseOriginOrUrl) return false;
+  try {
+    const targetOrigin = new URL(targetPath).origin.toLowerCase();
+    const expectedOrigin = new URL(baseOriginOrUrl).origin.toLowerCase();
+    return targetOrigin === expectedOrigin;
+  } catch {
+    return false;
+  }
+}
+
+function isLocalhost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  return (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host === '127.0.0.1' ||
+    host.startsWith('127.') ||
+    host === '::1'
+  );
+}
+
 /**
  * Main GLPI API client facade providing unified access to REST resources,
  * GraphQL querying, authentication management, and session scoping.
@@ -115,6 +141,18 @@ export class GlpiClient {
     }
 
     const rawApiUrl = options.apiUrl.trim().replace(/\/+$/, '');
+
+    try {
+      const parsed = new URL(rawApiUrl);
+      if (parsed.protocol === 'http:' && !isLocalhost(parsed.hostname)) {
+        (options.logger ?? new ConsoleLogger()).warn(
+          `[SECURITY WARNING] GlpiClient is configured with an unencrypted HTTP URL (${rawApiUrl}). Credentials and Bearer tokens may be exposed in transit.`
+        );
+      }
+    } catch {
+      // Ignored: invalid URL will fail upon fetch or further validation
+    }
+
     const restPath = options.restPath ?? '/v2';
     const normalizedRestPath = restPath.startsWith('/') ? restPath : `/${restPath}`;
 
@@ -384,7 +422,8 @@ export class GlpiClient {
       if (this.authProvider) {
         const isTokenPath =
           typeof requestOpts.path === 'string' && requestOpts.path.includes('/token');
-        if (!isTokenPath) {
+        const sameOrigin = isSameOrigin(requestOpts.path, httpClient.getBaseUrl());
+        if (!isTokenPath && sameOrigin) {
           const token = await this.authProvider.getAccessToken();
           if (token) {
             if (!requestOpts.headers) {
@@ -411,6 +450,7 @@ export class GlpiClient {
       onRejected: async (err: unknown, requestOpts?: HttpRequestOptions) => {
         const opts = requestOpts ?? (err as any)?.options;
         const isTokenPath = typeof opts?.path === 'string' && opts.path.includes('/token');
+        const sameOrigin = opts ? isSameOrigin(opts.path, httpClient.getBaseUrl()) : false;
 
         if (
           err instanceof GlpiHttpError &&
@@ -418,6 +458,7 @@ export class GlpiClient {
           opts &&
           !(opts as any)._retried &&
           !isTokenPath &&
+          sameOrigin &&
           this.authProvider
         ) {
           (opts as any)._retried = true;

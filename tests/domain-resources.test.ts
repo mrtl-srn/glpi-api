@@ -399,5 +399,116 @@ describe('Domain Resource Services', () => {
       })
     );
   });
+
+  describe('Security: ID encoding & Filename sanitization (VULN-04 & VULN-05)', () => {
+    it('encodes ticket IDs in TicketResource methods (VULN-04)', async () => {
+      (mockHttp.request as any).mockResolvedValue({ status: 200, data: {} });
+      const tickets = new TicketResource(mockHttp);
+
+      await tickets.getTimeline('../../Administration/User/Me');
+      expect(mockHttp.request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: '/Assistance/Ticket/..%2F..%2FAdministration%2FUser%2FMe/Timeline',
+        })
+      );
+
+      await tickets.addFollowup('10/extra', 'content');
+      expect(mockHttp.request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: '/Assistance/Ticket/10%2Fextra/Timeline/Followup',
+        })
+      );
+
+      await tickets.assign('10/extra', 42);
+      expect(mockHttp.request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: '/Assistance/Ticket/10%2Fextra/TeamMember',
+        })
+      );
+
+      await tickets.addDocument('10/extra', 99);
+      expect(mockHttp.request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: '/Assistance/Ticket/10%2Fextra/Timeline/Document',
+        })
+      );
+    });
+
+    it('encodes document IDs in DocumentResource.download (VULN-04)', async () => {
+      (mockHttp.request as any).mockResolvedValue({
+        status: 200,
+        data: new ArrayBuffer(8),
+        headers: new Headers(),
+      });
+      const docs = new DocumentResource(mockHttp);
+
+      await docs.download('../../secret');
+      expect(mockHttp.request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: '/Management/Document/..%2F..%2Fsecret/Download',
+        })
+      );
+    });
+
+    it('sanitizes Content-Disposition filename against path traversal and control characters (VULN-05)', async () => {
+      const docs = new DocumentResource(mockHttp);
+
+      // Traversal in standard filename
+      (mockHttp.request as any).mockResolvedValueOnce({
+        status: 200,
+        data: new ArrayBuffer(4),
+        headers: new Headers({
+          'content-disposition': 'attachment; filename="../../../etc/passwd"',
+        }),
+      });
+      const res1 = await docs.download(1);
+      expect(res1.filename).toBe('passwd');
+
+      // Windows traversal
+      (mockHttp.request as any).mockResolvedValueOnce({
+        status: 200,
+        data: new ArrayBuffer(4),
+        headers: new Headers({
+          'content-disposition': 'attachment; filename="..\\..\\windows\\system32\\calc.exe"',
+        }),
+      });
+      const res2 = await docs.download(2);
+      expect(res2.filename).toBe('calc.exe');
+
+      // Null byte injection
+      (mockHttp.request as any).mockResolvedValueOnce({
+        status: 200,
+        data: new ArrayBuffer(4),
+        headers: {
+          'content-disposition': 'attachment; filename="evil.sh\x00.pdf"',
+        },
+      });
+      const res3 = await docs.download(3);
+      expect(res3.filename).toBe('evil.sh.pdf');
+
+      // RFC 5987 encoded traversal
+      (mockHttp.request as any).mockResolvedValueOnce({
+        status: 200,
+        data: new ArrayBuffer(4),
+        headers: new Headers({
+          'content-disposition': "attachment; filename*=UTF-8''%2e%2e%2f%2e%2e%2froot.sh",
+        }),
+      });
+      const res4 = await docs.download(4);
+      expect(res4.filename).toBe('root.sh');
+
+      // Filename consisting only of dots/slashes
+      (mockHttp.request as any).mockResolvedValueOnce({
+        status: 200,
+        data: new ArrayBuffer(4),
+        headers: new Headers({
+          'content-disposition': 'attachment; filename="../../.."',
+        }),
+      });
+      const res5 = await docs.download(5);
+      expect(res5.filename).toBeUndefined();
+    });
+  });
 });
+
 

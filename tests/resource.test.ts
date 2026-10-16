@@ -306,4 +306,32 @@ describe('Resource Service & Route Registry', () => {
       'Cannot fetch created entity: server response did not contain an id'
     );
   });
+
+  describe('Security: Path Traversal in Resource IDs (VULN-04)', () => {
+    it('encodes path traversal characters and URL-unsafe characters in resource IDs', async () => {
+      (mockHttp.request as any).mockResolvedValue({ status: 200, data: { id: 1 } });
+      const service = new ResourceService<TestItem>(mockHttp, 'Assistance/Ticket');
+
+      await service.get('../../Administration/User/Me');
+      expect(mockHttp.request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: '/Assistance/Ticket/..%2F..%2FAdministration%2FUser%2FMe',
+        })
+      );
+
+      await service.update('1/assign', { name: 'test' });
+      expect(mockHttp.request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: '/Assistance/Ticket/1%2Fassign',
+        })
+      );
+
+      await service.delete('1?admin=true');
+      expect(mockHttp.request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: '/Assistance/Ticket/1%3Fadmin%3Dtrue',
+        })
+      );
+    });
+  });
 });

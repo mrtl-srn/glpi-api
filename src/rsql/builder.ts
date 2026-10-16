@@ -1,3 +1,15 @@
+import { GlpiError } from '../errors/index.js';
+
+const RSQL_FIELD_PATTERN = /^[a-zA-Z0-9_.-]+$/;
+
+function assertValidField(field: string): void {
+  if (typeof field !== 'string' || !RSQL_FIELD_PATTERN.test(field)) {
+    throw new GlpiError(
+      `Invalid RSQL field identifier: "${field}". Field names must only contain alphanumeric characters, underscores, hyphens, and dots.`
+    );
+  }
+}
+
 /**
  * Escapes and quotes values for RSQL query strings.
  *
@@ -66,6 +78,7 @@ export class RsqlBuilder {
    * Equality operator: `field==value`
    */
   eq(field: string, val: unknown): this {
+    assertValidField(field);
     return this.append(`${field}==${escapeValue(val)}`);
   }
 
@@ -73,6 +86,7 @@ export class RsqlBuilder {
    * Inequality operator: `field!=value`
    */
   neq(field: string, val: unknown): this {
+    assertValidField(field);
     return this.append(`${field}!=${escapeValue(val)}`);
   }
 
@@ -80,6 +94,7 @@ export class RsqlBuilder {
    * Greater than operator: `field=gt=value`
    */
   gt(field: string, val: unknown): this {
+    assertValidField(field);
     return this.append(`${field}=gt=${escapeValue(val)}`);
   }
 
@@ -87,6 +102,7 @@ export class RsqlBuilder {
    * Greater than or equal operator: `field=ge=value`
    */
   ge(field: string, val: unknown): this {
+    assertValidField(field);
     return this.append(`${field}=ge=${escapeValue(val)}`);
   }
 
@@ -94,6 +110,7 @@ export class RsqlBuilder {
    * Less than operator: `field=lt=value`
    */
   lt(field: string, val: unknown): this {
+    assertValidField(field);
     return this.append(`${field}=lt=${escapeValue(val)}`);
   }
 
@@ -101,6 +118,7 @@ export class RsqlBuilder {
    * Less than or equal operator: `field=le=value`
    */
   le(field: string, val: unknown): this {
+    assertValidField(field);
     return this.append(`${field}=le=${escapeValue(val)}`);
   }
 
@@ -108,6 +126,7 @@ export class RsqlBuilder {
    * Like (pattern matching) operator: `field=like=pattern`
    */
   like(field: string, pattern: string): this {
+    assertValidField(field);
     return this.append(`${field}=like=${escapeValue(pattern)}`);
   }
 
@@ -115,6 +134,7 @@ export class RsqlBuilder {
    * Case-insensitive like operator: `field=ilike=pattern`
    */
   ilike(field: string, pattern: string): this {
+    assertValidField(field);
     return this.append(`${field}=ilike=${escapeValue(pattern)}`);
   }
 
@@ -122,6 +142,7 @@ export class RsqlBuilder {
    * In-list operator: `field=in=(val1,val2,...)`
    */
   in(field: string, values: unknown[]): this {
+    assertValidField(field);
     const list = values.map((v) => escapeValue(v)).join(',');
     return this.append(`${field}=in=(${list})`);
   }
@@ -130,6 +151,7 @@ export class RsqlBuilder {
    * Not-in-list operator: `field=out=(val1,val2,...)`
    */
   out(field: string, values: unknown[]): this {
+    assertValidField(field);
     const list = values.map((v) => escapeValue(v)).join(',');
     return this.append(`${field}=out=(${list})`);
   }
@@ -138,6 +160,7 @@ export class RsqlBuilder {
    * Null check operator: `field=isnull=`
    */
   isNull(field: string): this {
+    assertValidField(field);
     return this.append(`${field}=isnull=`);
   }
 
@@ -145,6 +168,7 @@ export class RsqlBuilder {
    * Not-null check operator: `field=isnotnull=`
    */
   isNotNull(field: string): this {
+    assertValidField(field);
     return this.append(`${field}=isnotnull=`);
   }
 
@@ -152,6 +176,7 @@ export class RsqlBuilder {
    * Empty check operator: `field=empty=`
    */
   empty(field: string): this {
+    assertValidField(field);
     return this.append(`${field}=empty=`);
   }
 
@@ -159,6 +184,7 @@ export class RsqlBuilder {
    * Not-empty check operator: `field=notempty=`
    */
   notEmpty(field: string): this {
+    assertValidField(field);
     return this.append(`${field}=notempty=`);
   }
 
