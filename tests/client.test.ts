@@ -272,5 +272,72 @@ describe('GlpiClient initialization', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('Security: Unencrypted HTTP warning (VULN-08)', () => {
+    it('warns when apiUrl uses unencrypted http:// on remote hosts with custom logger', () => {
+      const mockLogger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+
+      new GlpiClient({
+        apiUrl: 'http://glpi.corp.com/api.php',
+        logger: mockLogger,
+      });
+
+      expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('[SECURITY WARNING] GlpiClient is configured with an unencrypted HTTP URL')
+      );
+    });
+
+    it('warns on console.warn when apiUrl uses unencrypted http:// without custom logger', () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      try {
+        new GlpiClient({
+          apiUrl: 'http://remote-server.glpi.org/api.php',
+        });
+
+        expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('[SECURITY WARNING] GlpiClient is configured with an unencrypted HTTP URL')
+        );
+      } finally {
+        consoleWarnSpy.mockRestore();
+      }
+    });
+
+    it('does not warn when using http:// on localhost, 127.0.0.1, or loopback IPv6', () => {
+      const mockLogger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+
+      new GlpiClient({ apiUrl: 'http://localhost/api.php', logger: mockLogger });
+      new GlpiClient({ apiUrl: 'http://127.0.0.1/api.php', logger: mockLogger });
+      new GlpiClient({ apiUrl: 'http://app.localhost/api.php', logger: mockLogger });
+      new GlpiClient({ apiUrl: 'http://[::1]/api.php', logger: mockLogger });
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it('does not warn when using https://', () => {
+      const mockLogger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+
+      new GlpiClient({ apiUrl: 'https://glpi.corp.com/api.php', logger: mockLogger });
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+  });
 });
 

@@ -1,27 +1,27 @@
 # Rapport d'Audit de Sécurité — `glpi-api` (v2.0.0 Post-Remédiation)
 
-**Date d'évaluation :** 15 octobre 2026  
+**Date d'évaluation :** 16 octobre 2026  
 **Cible :** Bibliothèque client TypeScript [`glpi-api`](./package.json)  
 **Périmètre :** Code source complet (`src/`), architecture d'authentification OAuth2, transport HTTP et proxy, générateur RSQL, téléchargement/téléversement de documents, et dépendances.  
-**Version / Commit évalué :** Commit `4730202` (branche `32-security-audit`, basé sur `v2.0.0`)  
-**Statut global :** **Excellent — Toutes les vulnérabilités Élevées et Moyennes antérieures ont été résolues et validées par tests unitaires.**
+**Version / Commit évalué :** Branche `32-security-audit` (post-remediation VULN-01 à VULN-08)  
+**Statut global :** **Remarquable — Toutes les vulnérabilités Élevées, Moyennes et Faibles prioritaires (VULN-01 à VULN-08) ont été résolues et validées par 154 tests unitaires.**
 
 ---
 
 ## 1. Synthèse Exécutive & Posture Globale
 
-Cet audit de sécurité fait suite à la mise en œuvre des correctifs sur la bibliothèque `glpi-api` v2.0.0. L'audit a évalué le code source après application des correctifs prioritaires (**VULN-01 à VULN-06**).
+Cet audit de sécurité fait suite à la mise en œuvre des correctifs sur la bibliothèque `glpi-api` v2.0.0. L'audit a évalué le code source après application des correctifs prioritaires et résiduels (**VULN-01 à VULN-08**).
 
 ### 1.1 Évolution de la Posture de Sécurité
 
-| Métrique | État Initial (Tag `v2.0.0` - `885b497`) | État Actuel (Commit `4730202`) | Évolution |
+| Métrique | État Initial (Tag `v2.0.0` - `885b497`) | État Actuel (Branche `32-security-audit`) | Évolution |
 | :--- | :---: | :---: | :---: |
 | **Vulnérabilités Critiques** | 0 | 0 | Stable |
 | **Vulnérabilités Élevées** | 2 | **0** | **-100% (Résolues)** |
 | **Vulnérabilités Moyennes** | 4 | **0** | **-100% (Résolues)** |
-| **Vulnérabilités Faibles** | 2 | 4 | +2 (Nouvelles observations documentées) |
+| **Vulnérabilités Faibles** | 2 | 2 | VULN-07 et VULN-08 résolues (2 observations résiduelles documentées) |
 | **Avis Informationnels** | 1 | 2 | +1 (Recommandation d'usage) |
-| **Couverture de tests unitaires** | 143 tests | **149 tests (100% passants)** | +6 tests de sécurité dédiés |
+| **Couverture de tests unitaires** | 143 tests | **154 tests (100% passants)** | +11 tests de sécurité dédiés |
 | **Dépendances d'exécution (`dependencies`)** | **0** | **0** | Chaîne de production 100% isolée |
 
 ### 1.2 Points Forts Architecturaux Confirmés
@@ -47,8 +47,8 @@ Cet audit de sécurité fait suite à la mise en œuvre des correctifs sur la bi
 | **VULN-04** | **Moyenne** | CWE-22 / CWE-88 | `src/resources/ResourceService.ts` | Risque de traversée de chemin / confusion de route via les identifiants non encodés | **Résolu & Vérifié** |
 | **VULN-05** | **Moyenne** | CWE-22 | `src/resources/domain/DocumentResource.ts` | Absence d'assainissement du `filename` extrait du `Content-Disposition` | **Résolu & Vérifié** |
 | **VULN-06** | **Moyenne** | CWE-312 / CWE-316 | `src/auth/PasswordAuthProvider.ts` | Maintien du mot de passe en mémoire et persistance des identifiants après `logout()` | **Résolu & Vérifié** |
-| **VULN-07** | **Faible** | CWE-697 | `src/http/FetchHttpClient.ts` | Absence de support des plages CIDR IPv6 dans le parseur de contournement `NO_PROXY` | Ouvert |
-| **VULN-08** | **Faible** | CWE-319 | `src/client.ts` | Absence d'alerte lors de l'utilisation d'une URL HTTP non sécurisée hors localhost | Ouvert |
+| **VULN-07** | **Faible** | CWE-697 | `src/http/FetchHttpClient.ts` | Absence de support des plages CIDR IPv6 dans le parseur de contournement `NO_PROXY` | **Résolu & Vérifié** |
+| **VULN-08** | **Faible** | CWE-319 | `src/client.ts` | Absence d'alerte lors de l'utilisation d'une URL HTTP non sécurisée hors localhost | **Résolu & Vérifié** |
 | **VULN-09** | **Info** | CWE-1395 | `package.json` | Avis de sécurité dans les outils de développement (`vitest`, `esbuild`, `tinypool`) | Accepté (Dev) |
 | **VULN-10** | **Faible** | CWE-400 / CWE-770 | `src/resources/domain/DocumentResource.ts` | Risque de saturation mémoire (OOM) sur téléchargement de fichiers volumineux sans streaming | Ouvert |
 | **VULN-11** | **Faible** | CWE-312 | `src/auth/ClientCredentialsAuthProvider.ts` | Persistance du `clientSecret` après `logout()` permettant une ré-authentification implicite | Ouvert |
@@ -56,7 +56,7 @@ Cet audit de sécurité fait suite à la mise en œuvre des correctifs sur la bi
 
 ---
 
-## 3. Vérification & Preuves des Correctifs Appliqués (VULN-01 à VULN-06)
+## 3. Vérification & Preuves des Correctifs Appliqués (VULN-01 à VULN-08)
 
 ### VULN-01 : Masquage des Identifiants Sensibles dans les Erreurs et Journaux
 - **Localisation :** [`src/http/FetchHttpClient.ts`](./src/http/FetchHttpClient.ts#L107-L220)
@@ -124,50 +124,35 @@ Cet audit de sécurité fait suite à la mise en œuvre des correctifs sur la bi
   - Fichier de test : [`tests/auth.test.ts`](./tests/auth.test.ts)
   - Cas vérifiés : Vérification que tout appel ultérieur à `getAccessToken()` après un `logout()` échoue avec `NO_CREDENTIALS` au lieu de relancer silencieusement une authentification avec des identifiants résiduels.
 
+### VULN-07 : Prise en Charge Complète des Notations et Plages CIDR IPv6 dans le Contournement de Proxy
+- **Localisation :** [`src/http/FetchHttpClient.ts`](./src/http/FetchHttpClient.ts#L30-L100)
+- **Correctif mis en place :**
+  - Implémentation de la fonction [`ip6ToBigInt(ip)`](./src/http/FetchHttpClient.ts#L31) convertissant toute adresse IPv6 canonique, compressée (`::`) ou mappée IPv4 (`::ffff:192.168.1.1`) en un entier standard 128 bits natif `BigInt`.
+  - Implémentation de [`matchCidr6(ip, cidr)`](./src/http/FetchHttpClient.ts#L71) appliquant un masque de sous-réseau binaire 128 bits `(1n << 128n) - (1n << (128n - BigInt(bits)))` et validant l'appartenance par opération bit à bit `(ipVal ^ netVal) & mask === 0n`.
+  - Adaptation de [`matchCidr`](./src/http/FetchHttpClient.ts#L88) pour détecter la présence du caractère `:` et basculer automatiquement sur la résolution IPv6 128 bits ou IPv4 32 bits selon le format de l'adresse.
+  - Prise en charge des adresses IPv6 entre crochets dans [`matchNoProxyRule`](./src/http/FetchHttpClient.ts#L248) (ex: `[fe80::]/10` ou `[2001:db8::1]`) et comparaison canonique d'égalité d'adresses IPv6 entre notations raccourcies et complètes.
+- **Validation par tests :**
+  - Fichier de test : [`tests/http.test.ts`](./tests/http.test.ts)
+  - Cas vérifiés : Correspondance exacte des sous-réseaux CIDR IPv6 (`2001:db8::1` dans `2001:db8::/32`, `fe80::abcd` dans `fe80::/10`), exclusion des adresses hors plage (`2001:db9::1`), et prise en compte des adresses IPv6 littérales compressées ou entre crochets.
+
+### VULN-08 : Avertissement de Sécurité sur les Connexions HTTP en Clair Hors Localhost
+- **Localisation :** [`src/client.ts`](./src/client.ts#L142-L166)
+- **Correctif mis en place :**
+  - Création de la fonction de contrôle [`isLocalhost(hostname)`](./src/client.ts#L142) vérifiant `localhost`, les domaines `*.localhost` (RFC 6761), la boucle locale IPv4 `127.0.0.1` ainsi que le bloc `127.0.0.0/8`, et la boucle locale IPv6 `::1`.
+  - Dans le constructeur de [`GlpiClient`](./src/client.ts#L152), vérification du protocole de l'URL cible `apiUrl` : si le protocole est `http:` et que l'hôte cible n'est pas une boucle locale (`!isLocalhost(parsed.hostname)`), émission systématique d'un avertissement de sécurité via le logger :
+    ```typescript
+    (options.logger ?? new ConsoleLogger()).warn(
+      `[SECURITY WARNING] GlpiClient is configured with an unencrypted HTTP URL (${rawApiUrl}). Credentials and Bearer tokens will be transmitted in cleartext over the network.`
+    );
+    ```
+  - Permet aux intégrateurs d'être immédiatement informés du risque d'interception réseau en environnement de pré-production ou de production sans bloquer les environnements de test locaux.
+- **Validation par tests :**
+  - Fichier de test : [`tests/client.test.ts`](./tests/client.test.ts)
+  - Cas vérifiés : Émission du log d'avertissement sur `http://glpi.corp.com/api.php`, absence d'avertissement sur `http://localhost/api.php`, `http://127.0.0.1/api.php` et `https://glpi.corp.com/api.php`, et transmission de l'avertissement au logger personnalisé configuré.
+
 ---
 
 ## 4. Analyse Détaillée des Vulnérabilités Résiduelles & Nouvelles Observations
-
----
-
-### VULN-07 [Faible] : Absence de Support IPv6 dans les Règles CIDR de `NO_PROXY`
-
-- **CWE :** CWE-697 (Incorrect Comparison)
-- **Composant :** [`src/http/FetchHttpClient.ts:18-41`](./src/http/FetchHttpClient.ts#L18-L41)
-- **CVSS v3.1 :** 3.1 (`CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N`)
-
-#### Mécanisme
-La fonction `matchCidr` délègue à `ipToInt`, qui exige strictement 4 blocs décimaux séparés par des points (`parts.length !== 4`). Toute règle CIDR IPv6 (ex: `fe80::/10` ou `2001:db8::/32`) renvoie `false`. Les requêtes destinées à des réseaux locaux IPv6 déclarés en contournement de proxy seront donc transmises au proxy d'entreprise au lieu d'être traitées en direct.
-
-#### Impact
-Déviation inattendue de flux réseau internes IPv6 vers un proxy HTTP d'entreprise.
-
-#### Remédiation Recommandée
-Ajouter le support des adresses IPv6 (conversion en `BigInt` 128 bits) ou utiliser une expression régulière pour normaliser les adresses IPv6 lors du matching CIDR.
-
----
-
-### VULN-08 [Faible] : Absence d'Avertissement sur URL Non Chiffrée (`http://`)
-
-- **CWE :** CWE-319 (Cleartext Transmission of Sensitive Information)
-- **Composant :** [`src/client.ts:128-146`](./src/client.ts#L128-L146)
-- **CVSS v3.1 :** 3.7 (`CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N`)
-
-#### Mécanisme
-Lors de l'instanciation de `GlpiClient`, si `apiUrl` commence par `http://` et que l'hôte cible n'est ni `localhost` ni `127.0.0.1`, le client transmet les identifiants OAuth2 et les jetons Bearer en clair sur le réseau sans émettre d'avertissement.
-
-#### Remédiation Recommandée
-Émettre un avertissement via `this.logger.warn(...)` dans le constructeur de `GlpiClient` si le protocole est non TLS sur un hôte distant :
-```typescript
-try {
-  const parsed = new URL(rawApiUrl);
-  if (parsed.protocol === 'http:' && parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1') {
-    (options.logger ?? new ConsoleLogger()).warn(
-      `[SECURITY WARNING] GlpiClient is configured with an unencrypted HTTP URL (${rawApiUrl}). Credentials and Bearer tokens may be exposed in transit.`
-    );
-  }
-} catch {}
-```
 
 ---
 
@@ -262,11 +247,11 @@ Documenter clairement dans le README / JSDoc que `upload(filePath)` ne doit jama
 ## 6. Conclusion & Recommandations
 
 La bibliothèque `glpi-api` v2.0.0 présente désormais un **niveau de sécurité remarquable** pour une bibliothèque d'intégration d'API :
-- Les vulnérabilités antérieures d'exposition d'identifiants (VULN-01), de fuite de jeton (VULN-02), d'injection RSQL (VULN-03) et de traversée de chemin (VULN-04, VULN-05, VULN-06) ont toutes été traitées de manière rigoureuse et validées par **149 tests unitaires passants**.
-- Les quelques observations restantes (VULN-07 à VULN-12) sont de sévérité faible ou informationnelle et n'affectent pas l'intégrité globale du système dans des conditions normales d'exploitation.
+- Les vulnérabilités antérieures d'exposition d'identifiants (VULN-01), de fuite de jeton (VULN-02), d'injection RSQL (VULN-03), de traversée de chemin (VULN-04, VULN-05), de persistance mémoire post-logout (VULN-06), d'incohérence CIDR IPv6 (VULN-07) et d'absence d'avertissement HTTP clair (VULN-08) ont toutes été traitées de manière rigoureuse et validées par **154 tests unitaires passants**.
+- Les observations restantes (VULN-09 à VULN-12) sont de sévérité faible ou informationnelle et n'affectent pas l'intégrité globale du système dans des conditions normales d'exploitation.
 
 ### Plan d'Action Proposé pour les Versions Futures :
 1. **v2.1.0 :** Implémenter `client.documents.downloadStream(id)` pour permettre la consommation de fichiers volumineux sans surconsommation mémoire (VULN-10).
-2. **v2.1.0 :** Ajouter un avertissement dans la console si l'API est ciblée en HTTP clair sur un domaine non local (VULN-08).
-3. **v2.1.0 :** Étendre `matchCidr` au parsing des adresses IPv6 pour le contournement de proxy (VULN-07).
+2. **v2.1.0 :** Évaluer l'invalidation explicite de `clientSecret` dans `ClientCredentialsAuthProvider.logout()` (VULN-11).
+3. **Documentation :** Documenter l'exigence de validation de chemin pour les intégrateurs appelant `client.documents.upload(filePath)` (VULN-12).
 4. **Maintenance :** Mettre à jour les outils de dev (`vitest`, `vite`) dès que les correctifs amont seront publiés dans une version majeure compatible (VULN-09).

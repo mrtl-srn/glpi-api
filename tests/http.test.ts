@@ -427,6 +427,26 @@ describe('FetchHttpClient', () => {
       }
     });
 
+    it('matches IPv6 CIDR blocks in NO_PROXY (VULN-07)', () => {
+      delete process.env.no_proxy;
+      process.env.NO_PROXY = '2001:db8::/32, [fe80::]/10, ::1/128';
+      try {
+        const client = new FetchHttpClient({
+          proxy: 'http://proxy.corp:8080',
+          fetch: mockFetch,
+        });
+
+        expect(client.shouldBypassProxy('http://[2001:db8:1234::1]:8080/api')).toBe(true);
+        expect(client.shouldBypassProxy('http://[fe80::1]:8080/api')).toBe(true);
+        expect(client.shouldBypassProxy('http://[::1]:8080/api')).toBe(true);
+        expect(client.shouldBypassProxy('http://[2001:db9::1]:8080/api')).toBe(false);
+        expect(client.shouldBypassProxy('http://[fec0::1]:8080/api')).toBe(false);
+      } finally {
+        if (origNoProxy !== undefined) process.env.NO_PROXY = origNoProxy; else delete process.env.NO_PROXY;
+        if (origno_proxy !== undefined) process.env.no_proxy = origno_proxy;
+      }
+    });
+
     it('is case-insensitive for hostnames and rules', () => {
       delete process.env.no_proxy;
       process.env.NO_PROXY = 'GLPI.CORP.LOCAL';
