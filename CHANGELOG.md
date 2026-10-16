@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.1] - 2026-10-16
+
+### 🔒 Security Fixes
+
+- **VULN-01**: Redact sensitive keys (`password`, `authorization`, `client_secret`, `token`, `secret`, etc.) in error options and logs to prevent credential leakage.
+- **VULN-02**: Validate request destination origins before injecting Bearer tokens, preventing credential leakage and retry loops on external absolute URLs.
+- **VULN-03**: Validate RSQL field names with strict identifier regex (`RSQL_FIELD_PATTERN`) to prevent RSQL/FIQL injection.
+- **VULN-04**: Strictly URL-encode resource IDs across CRUD operations, sub-resources, and downloads to prevent path traversal and route confusion.
+- **VULN-05**: Sanitize `Content-Disposition` filenames (`sanitizeFilename`) to prevent path traversal on document download.
+- **VULN-06**: Clear credentials from memory on `logout()` in `PasswordAuthProvider`.
+- **VULN-07**: Add 128-bit IPv6 CIDR matching and bracket notation support in `NO_PROXY` bypass rule matcher.
+- **VULN-08**: Emit a security warning when `GlpiClient` is configured with an unencrypted `http://` URL on non-localhost hosts.
+
 ## [2.0.0] - 2026-10-14
 
 Complete modernization and rewrite of `glpi-api` into 100% strict TypeScript for GLPI REST API v2 and GraphQL, with zero runtime dependencies.

@@ -1,6 +1,6 @@
 {
   "name": "glpi-api",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Node module for GLPI REST and GraphQL API (v2)",
   "type": "module",
   "main": "./dist/index.cjs",

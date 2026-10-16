@@ -8,8 +8,8 @@ describe('Package constraints', () => {
     expect(packageJson.dependencies || {}).toEqual({});
   });
 
-  it('should have version 2.0.0', () => {
-    expect(packageJson.version).toBe('2.0.0');
+  it('should have version 2.0.1', () => {
+    expect(packageJson.version).toBe('2.0.1');
   });
 
   it('should configure dual ESM and CommonJS exports with TypeScript types', () => {
