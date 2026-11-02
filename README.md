@@ -8,6 +8,14 @@ Node module for [GLPI](https://glpi-project.org/) REST API
 ![license](https://img.shields.io/badge/license-MIT-orange.svg)
 [![Rate this package](https://badges.openbase.com/js/rating/glpi-api.svg?style=openbase&token=XpZR4YwDxshSCxxHIHLyFxTampwwyaL1jxh8vKRshfA=)](https://openbase.com/js/glpi-api?utm_source=embedded&amp;utm_medium=badge&amp;utm_campaign=rate-badge)
 
+> [!IMPORTANT]
+> **GLPI Version Compatibility & Which version to use:**
+> - **`glpi-api` v1.x (this version):** Targets the GLPI **legacy REST API** (`apirest.php`). It is compatible with **GLPI 9.x, GLPI 10.x, and GLPI 11 legacy API** (including GLPI 11 namespaced plugin classes such as `GlpiPlugin\PluginName\ClassName`).
+> - **`glpi-api` v2.x:** If you are using **GLPI >= 11** and want to use the new **High-Level REST API (HLAPI / `/api.php/v2`)** or GraphQL API with modern OAuth2 authentication, please use **v2 of this module**:
+>   ```bash
+>   npm install glpi-api@^2
+>   ```
+
 ## Installation
 
 ```
@@ -130,6 +138,20 @@ glpi.initSession()
   // Manage error
 })
 .then(() => glpi.killSession());
+```
+
+#### Working with Plugins (GLPI 11 and earlier)
+
+For GLPI 11, plugins follow PSR-4 namespaces (`GlpiPlugin\PluginName\ClassName`). Backslashes are automatically URL-encoded (`%5C`) when calling endpoints:
+
+```javascript
+// GLPI 11 namespaced plugin classes
+glpi.getItem('GlpiPlugin\\PluginName\\ClassName', 123)
+  .then((ret) => console.log(ret.data));
+
+// Legacy plugin classes (GLPI <= 10)
+glpi.getItem('PluginPluginNameClassName', 123)
+  .then((ret) => console.log(ret.data));
 ```
 
 ## Test

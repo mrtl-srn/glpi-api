@@ -1,3 +1,9 @@
+## 1.7.0
+
++ Add support for GLPI 11 namespaced plugin classes (`GlpiPlugin\Plugin\Class`) in legacy REST API
++ Automatically encode backslashes (`%5C`) in plugin endpoints
++ Update README with GLPI 11 version compatibility notes
+
 ## 1.6.0
 
 + Add input parameter to `upload()` method

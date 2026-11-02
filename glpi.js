@@ -193,15 +193,37 @@ class Glpi {
    * @returns {boolean}
    * @private
    */
+  _encodeItemType(itemType) {
+    if (!itemType || typeof itemType !== 'string') {
+      return itemType;
+    }
+    return itemType.replace(/%5c/gi, '\\').replace(/\\/g, '%5C');
+  }
+
   _validateItemType(itemType) {
     if (!itemType) {
       throw new MissingItemTypeError('Missing item type');
     }
 
-    if (itemTypes.indexOf(itemType) === -1) {
-      throw new InvalidItemTypeError(`Invalid item type '${itemType}'`);
+    if (itemTypes.indexOf(itemType) !== -1) {
+      return true;
     }
-    return true;
+
+    if (typeof itemType === 'string') {
+      const normalized = itemType.replace(/%5c/gi, '\\');
+
+      // Check GLPI 11 namespaced plugin classes: GlpiPlugin\<Plugin>\<Class>
+      if (/^GlpiPlugin\\[A-Za-z0-9_]+(\\[A-Za-z0-9_]+)+$/i.test(normalized)) {
+        return true;
+      }
+
+      // Check legacy plugin classes: Plugin<Plugin><Class>
+      if (/^Plugin[A-Za-z0-9_]+$/.test(itemType)) {
+        return true;
+      }
+    }
+
+    throw new InvalidItemTypeError(`Invalid item type '${itemType}'`);
   }
 
   /**
@@ -421,7 +443,7 @@ class Glpi {
     };
 
     const query = Object.assign({}, options, opts);
-    const endpoint = `/${itemType}/${id}`;
+    const endpoint = `/${this._encodeItemType(itemType)}/${id}`;
 
     return this._request(HTTP_GET, endpoint, { query });
   }
@@ -456,7 +478,7 @@ class Glpi {
     };
 
     const query = Object.assign({}, options, opts);
-    const endpoint = `/${itemType}`;
+    const endpoint = `/${this._encodeItemType(itemType)}`;
 
     return this._request(HTTP_GET, endpoint, { query });
   }
@@ -498,7 +520,7 @@ class Glpi {
       }
       this._validateItemType(subItemType);
 
-      const link = item.links.find((e) => e.rel === subItemType);
+      const link = item.links.find((e) => this._encodeItemType(e.rel) === this._encodeItemType(subItemType));
 
       if (!link) {
         throw new MissingHATEOASError(`Missing link for '${subItemType}' on provided object`);
@@ -516,7 +538,7 @@ class Glpi {
       this._validateItemType(itemType);
       this._validateItemType(subItemType);
 
-      endpoint = `/${itemType}/${id}/${subItemType}`;
+      endpoint = `/${this._encodeItemType(itemType)}/${id}/${this._encodeItemType(subItemType)}`;
     }
 
     const query = Object.assign({}, options, opts);
@@ -591,7 +613,7 @@ class Glpi {
     this._validateItemType(itemType);
 
     const query = (raw) ? { raw : true } : undefined;
-    const endpoint = `/listSearchOptions/${itemType}`;
+    const endpoint = `/listSearchOptions/${this._encodeItemType(itemType)}`;
 
     return this._request(HTTP_GET, endpoint, { query });
   }
@@ -654,7 +676,7 @@ class Glpi {
     };
 
     const query = Object.assign({}, options, opts);
-    const endpoint = `/search/${itemType}`;
+    const endpoint = `/search/${this._encodeItemType(itemType)}`;
 
     return this._request(HTTP_GET, endpoint, { query });
   }
@@ -676,7 +698,7 @@ class Glpi {
 
     const body = { input };
 
-    return this._request(HTTP_POST, `/${itemType}`, { body });
+    return this._request(HTTP_POST, `/${this._encodeItemType(itemType)}`, { body });
   }
 
   /**
@@ -707,7 +729,7 @@ class Glpi {
       }
     }
 
-    let endpoint = `/${itemType}`;
+    let endpoint = `/${this._encodeItemType(itemType)}`;
     if (id) {
       endpoint += `/${id}`;
     }
@@ -757,7 +779,7 @@ class Glpi {
     const query = Object.assign({}, options, opts);
     const body = { input };
 
-    let endpoint = `/${itemType}`;
+    let endpoint = `/${this._encodeItemType(itemType)}`;
     if (id) endpoint += `/${id}`;
 
     return this._request(HTTP_DELETE, endpoint, { body, query });

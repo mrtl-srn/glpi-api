@@ -1,3 +1,5 @@
+process.env.NO_PROXY = process.env.NO_PROXY ? `${process.env.NO_PROXY},glpiapi.test` : 'glpiapi.test';
+process.env.no_proxy = process.env.NO_PROXY;
 const chai = require('chai');
 const nock = require('nock');
 const _ = require('lodash');
@@ -104,6 +106,44 @@ describe('_validateItemType()', () => {
       const result = glpi._validateItemType(customItemType);
       expect(result).to.be.a('boolean', true);
     });
+  });
+
+  it('should accept GLPI 11 namespaced plugin classes', () => {
+    const glpi = new Glpi(config.userToken);
+    expect(glpi._validateItemType('GlpiPlugin\\Shipping\\Client')).to.be.a('boolean', true);
+    expect(glpi._validateItemType('GlpiPlugin\\Changefields\\Changefield')).to.be.a('boolean', true);
+  });
+
+  it('should accept GLPI 11 URL-encoded plugin classes', () => {
+    const glpi = new Glpi(config.userToken);
+    expect(glpi._validateItemType('GlpiPlugin%5cShipping%5cClient')).to.be.a('boolean', true);
+    expect(glpi._validateItemType('GlpiPlugin%5CShipping%5CClient')).to.be.a('boolean', true);
+  });
+
+  it('should accept legacy plugin classes', () => {
+    const glpi = new Glpi(config.userToken);
+    expect(glpi._validateItemType('PluginShippingClient')).to.be.a('boolean', true);
+    expect(glpi._validateItemType('PluginChangefieldsChangefield')).to.be.a('boolean', true);
+  });
+
+  it('should throw InvalidItemTypeError for invalid plugin classes and non-string types', () => {
+    const glpi = new Glpi(config.userToken);
+    expect(() => glpi._validateItemType('GlpiPlugin')).to.throw(InvalidItemTypeError);
+    expect(() => glpi._validateItemType('GlpiPlugin\\')).to.throw(InvalidItemTypeError);
+    expect(() => glpi._validateItemType('Plugin@Invalid')).to.throw(InvalidItemTypeError);
+    expect(() => glpi._validateItemType(12345)).to.throw(InvalidItemTypeError);
+  });
+
+  it('should properly encode itemType backslashes with _encodeItemType()', () => {
+    const glpi = new Glpi(config.userToken);
+    expect(glpi._encodeItemType('GlpiPlugin\\Shipping\\Client')).to.equal('GlpiPlugin%5CShipping%5CClient');
+    expect(glpi._encodeItemType('GlpiPlugin%5cShipping%5cClient')).to.equal('GlpiPlugin%5CShipping%5CClient');
+    expect(glpi._encodeItemType('GlpiPlugin%5CShipping%5CClient')).to.equal('GlpiPlugin%5CShipping%5CClient');
+    expect(glpi._encodeItemType('Ticket')).to.equal('Ticket');
+    expect(glpi._encodeItemType('PluginShippingClient')).to.equal('PluginShippingClient');
+    expect(glpi._encodeItemType(null)).to.be.null;
+    expect(glpi._encodeItemType(undefined)).to.be.undefined;
+    expect(glpi._encodeItemType(123)).to.equal(123);
   });
 });
 
@@ -591,6 +631,23 @@ describe('Authenticated methods', () => {
         expect(result).to.have.property('data').to.deep.equal(expectedBody);
       });
 
+      it('should add a GLPI 11 plugin item with URL-encoded backslashes in endpoint', async () => {
+        const data = { name : 'New Client' };
+        const id = 123;
+        const expectedCode = 201;
+        const expectedBody = { id, message: 'Item successfully added' };
+        const expectedPostBody = { input : data };
+        nock(config.userToken.apiurl)
+        .matchHeader('app-token', config.userToken.app_token)
+        .matchHeader('session-token', sessionToken)
+        .post('/GlpiPlugin%5CShipping%5CClient', expectedPostBody)
+        .reply(expectedCode, expectedBody);
+
+        const result = await glpi.addItems('GlpiPlugin\\Shipping\\Client', data);
+        expect(result).to.have.property('code', expectedCode);
+        expect(result).to.have.property('data').to.deep.equal(expectedBody);
+      });
+
       it('should throw InvalidParameterError', async () => {
         try {
           const result = await glpi.addItems('Ticket');
@@ -760,6 +817,23 @@ describe('Authenticated methods', () => {
         .reply(expectedCode, expectedBody);
 
         const result = await glpi.updateItems('Ticket', data);
+        expect(result).to.have.property('code', expectedCode);
+        expect(result).to.have.property('data').to.deep.equal(expectedBody);
+      });
+
+      it('should update a GLPI 11 plugin item with URL-encoded backslashes in endpoint', async () => {
+        const data = { name : 'Updated Client' };
+        const id = 42;
+        const expectedCode = 200;
+        const expectedBody = { id, message: '' };
+        const expectedPostBody = { input : data };
+        nock(config.userToken.apiurl)
+        .matchHeader('app-token', config.userToken.app_token)
+        .matchHeader('session-token', sessionToken)
+        .put(`/GlpiPlugin%5CShipping%5CClient/${id}`, expectedPostBody)
+        .reply(expectedCode, expectedBody);
+
+        const result = await glpi.updateItems('GlpiPlugin\\Shipping\\Client', id, data);
         expect(result).to.have.property('code', expectedCode);
         expect(result).to.have.property('data').to.deep.equal(expectedBody);
       });
@@ -943,6 +1017,31 @@ describe('Authenticated methods', () => {
         .reply(expectedCode, expectedBody);
 
         const result = await glpi.deleteItems('Ticket', data);
+        expect(result).to.have.property('code', expectedCode);
+        expect(result).to.have.property('data').to.deep.equal(expectedBody);
+      });
+
+      it('should delete a GLPI 11 plugin item with URL-encoded backslashes in endpoint', async () => {
+        const id = 42;
+        const query = {
+          force_purge : false,
+          history     : true,
+        };
+        const expectedCode = 200;
+        const expectedBody = [
+          {
+            [id]: true,
+            message: '',
+          }
+        ];
+        nock(config.userToken.apiurl)
+        .matchHeader('app-token', config.userToken.app_token)
+        .matchHeader('session-token', sessionToken)
+        .delete(`/GlpiPlugin%5CShipping%5CClient/${id}`)
+        .query(query)
+        .reply(expectedCode, expectedBody);
+
+        const result = await glpi.deleteItems('GlpiPlugin\\Shipping\\Client', id);
         expect(result).to.have.property('code', expectedCode);
         expect(result).to.have.property('data').to.deep.equal(expectedBody);
       });
@@ -1534,6 +1633,40 @@ describe('Authenticated methods', () => {
         expect(result).to.have.nested.property('data.id', requestedComputerId);
         expect(result).to.have.property('data').to.deep.equal(itemComputerWithDevices);
       });
+
+      it('should fetch a GLPI 11 plugin item with URL-encoded backslashes in endpoint', async () => {
+        const requestedId = 42;
+        const expectedCode = 200;
+        const expectedBody = { id: 42, name: 'Client A' };
+        const query = {
+          expand_dropdowns  : false,
+          get_hateoas       : true,
+          get_sha1          : false,
+          with_devices      : false,
+          with_disks        : false,
+          with_softwares    : false,
+          with_connections  : false,
+          with_networkports : false,
+          with_infocoms     : false,
+          with_contracts    : false,
+          with_documents    : false,
+          with_tickets      : false,
+          with_problems     : false,
+          with_changes      : false,
+          with_notes        : false,
+          with_logs         : false,
+        };
+        nock(config.userToken.apiurl)
+        .matchHeader('app-token', config.userToken.app_token)
+        .matchHeader('session-token', sessionToken)
+        .get(`/GlpiPlugin%5CShipping%5CClient/${requestedId}`)
+        .query(query)
+        .reply(expectedCode, expectedBody);
+
+        const result = await glpi.getItem('GlpiPlugin\\Shipping\\Client', requestedId);
+        expect(result).to.have.property('code', expectedCode);
+        expect(result).to.have.property('data').to.deep.equal(expectedBody);
+      });
     });
 
     describe('getItems()', () => {
@@ -1691,6 +1824,32 @@ describe('Authenticated methods', () => {
         expect(JSON.stringify(rawIds)).to.be.equal(JSON.stringify(orderedIds));
         expect(result).to.not.have.deep.nested.property('data[0].links');
       });
+
+      it('should fetch GLPI 11 plugin items with URL-encoded backslashes in endpoint', async () => {
+        const expectedCode = 200;
+        const expectedBody = [{ id: 1, name: 'Client 1' }, { id: 2, name: 'Client 2' }];
+        const expectedHeaders = { 'Content-Range' : '0-2/2', 'Accept-Range' : 'GlpiPlugin\\Shipping\\Client 1000' };
+        const query = {
+          expand_dropdowns  : false,
+          get_hateoas       : true,
+          only_id           : false,
+          range             : '0-50',
+          sort              : 'id',
+          order             : 'DESC',
+          searchText        : '',
+          is_deleted        : false,
+        };
+        nock(config.userToken.apiurl)
+        .matchHeader('app-token', config.userToken.app_token)
+        .matchHeader('session-token', sessionToken)
+        .get('/GlpiPlugin%5CShipping%5CClient')
+        .query(query)
+        .reply(expectedCode, expectedBody, expectedHeaders);
+
+        const result = await glpi.getItems('GlpiPlugin\\Shipping\\Client');
+        expect(result).to.have.property('code', expectedCode);
+        expect(result).to.have.property('data').to.deep.equal(expectedBody);
+      });
     });
 
     describe('getSubItems()', () => {
@@ -1772,6 +1931,31 @@ describe('Authenticated methods', () => {
           expect(rawIds).to.be.an('array').of.length(nbResultsExpected);
           expect(orderedIds).to.be.an('array').of.length(nbResultsExpected);
           expect(JSON.stringify(rawIds)).to.be.equal(JSON.stringify(orderedIds));
+        });
+
+        it('should return subitems of a GLPI 11 plugin', async () => {
+          const expectedCode = 200;
+          const expectedBody = [{ id: 10, name: 'Order 10' }];
+          const requestedClientId = 42;
+          const expectedHeaders = { 'Content-Range': '0-1/1', 'Accept-Range': 'GlpiPlugin\\Shipping\\Order 1000' };
+          const query = {
+            expand_dropdowns : false,
+            get_hateoas      : true,
+            only_id          : false,
+            range            : '0-50',
+            sort             : 'id',
+            order            : 'DESC',
+          };
+          nock(config.userToken.apiurl)
+          .matchHeader('app-token', config.userToken.app_token)
+          .matchHeader('session-token', sessionToken)
+          .get(`/GlpiPlugin%5CShipping%5CClient/${requestedClientId}/GlpiPlugin%5CShipping%5COrder`)
+          .query(query)
+          .reply(expectedCode, expectedBody, expectedHeaders);
+
+          const result = await glpi.getSubItems('GlpiPlugin\\Shipping\\Client', requestedClientId, 'GlpiPlugin\\Shipping\\Order');
+          expect(result).to.have.property('code', expectedCode);
+          expect(result).to.have.property('data').to.deep.equal(expectedBody);
         });
 
         it('should throw MissingItemTypeError without sub item type provided', async () => {
@@ -1884,6 +2068,39 @@ describe('Authenticated methods', () => {
           expect(rawIds).to.be.an('array').of.length(nbResultsExpected);
           expect(orderedIds).to.be.an('array').of.length(nbResultsExpected);
           expect(JSON.stringify(rawIds)).to.be.equal(JSON.stringify(orderedIds));
+        });
+
+        it('should return subitems of a GLPI 11 plugin via HATEOAS links', async () => {
+          const pluginItem = {
+            id: 42,
+            name: 'Client 42',
+            links: [
+              {
+                rel: 'GlpiPlugin\\Shipping\\Order',
+                href: `${config.userToken.apiurl}/GlpiPlugin%5CShipping%5COrder/42`,
+              },
+            ],
+          };
+          const expectedCode = 200;
+          const expectedBody = [{ id: 10, name: 'Order 10' }];
+          const query = {
+            expand_dropdowns : false,
+            get_hateoas      : true,
+            only_id          : false,
+            range            : '0-50',
+            sort             : 'id',
+            order            : 'DESC',
+          };
+          nock(config.userToken.apiurl)
+          .matchHeader('app-token', config.userToken.app_token)
+          .matchHeader('session-token', sessionToken)
+          .get('/GlpiPlugin%5CShipping%5COrder/42')
+          .query(query)
+          .reply(expectedCode, expectedBody);
+
+          const result = await glpi.getSubItems(pluginItem, 'GlpiPlugin\\Shipping\\Order');
+          expect(result).to.have.property('code', expectedCode);
+          expect(result).to.have.property('data').to.deep.equal(expectedBody);
         });
 
         it('should throw MissingHATEOASError with ticket as object with no links', async () => {
@@ -2093,6 +2310,20 @@ describe('Authenticated methods', () => {
         expect(result).to.have.property('code', expectedCode);
         expect(result).to.have.property('data').to.deep.equal(searchOptionsTicketRaw);
       });
+
+      it('should return search options for a GLPI 11 plugin', async () => {
+        const expectedCode = 200;
+        const expectedBody = { 1: { name: 'Name' }, 2: { name: 'ID' } };
+        nock(config.userToken.apiurl)
+        .matchHeader('app-token', config.userToken.app_token)
+        .matchHeader('session-token', sessionToken)
+        .get('/listSearchOptions/GlpiPlugin%5CShipping%5CClient')
+        .reply(expectedCode, expectedBody);
+
+        const result = await glpi.listSearchOptions('GlpiPlugin\\Shipping\\Client');
+        expect(result).to.have.property('code', expectedCode);
+        expect(result).to.have.property('data').to.deep.equal(expectedBody);
+      });
     });
 
     describe('search()', () => {
@@ -2182,6 +2413,29 @@ describe('Authenticated methods', () => {
 
         expect(result).to.have.property('code', expectedCode);
         expect(result).to.have.property('data').to.deep.equal(searchTicket);
+      });
+
+      it('should return search result for a GLPI 11 plugin', async () => {
+        const expectedCode = 200;
+        const expectedBody = { totalcount: 1, data: [{ 1: 'Client 1' }] };
+        const query = {
+          sort         : 'id',
+          order        : 'DESC',
+          rawdata      : false,
+          withindexes  : false,
+          uid_cols     : false,
+          giveItems    : false,
+        };
+        nock(config.userToken.apiurl)
+        .matchHeader('app-token', config.userToken.app_token)
+        .matchHeader('session-token', sessionToken)
+        .get('/search/GlpiPlugin%5CShipping%5CClient')
+        .query(query)
+        .reply(expectedCode, expectedBody);
+
+        const result = await glpi.search('GlpiPlugin\\Shipping\\Client');
+        expect(result).to.have.property('code', expectedCode);
+        expect(result).to.have.property('data').to.deep.equal(expectedBody);
       });
     });
 
