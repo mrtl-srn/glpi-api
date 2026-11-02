@@ -147,6 +147,98 @@ describe('_validateItemType()', () => {
   });
 });
 
+describe('_validateAndEncodeId()', () => {
+  it('should validate and encode valid integer and string IDs', () => {
+    const glpi = new Glpi(config.userToken);
+    expect(glpi._validateAndEncodeId(1)).to.equal('1');
+    expect(glpi._validateAndEncodeId(0)).to.equal('0');
+    expect(glpi._validateAndEncodeId('42')).to.equal('42');
+    expect(glpi._validateAndEncodeId('test item')).to.equal('test%20item');
+  });
+
+  it('should throw InvalidParameterError for missing, empty or null id', () => {
+    const glpi = new Glpi(config.userToken);
+    expect(() => glpi._validateAndEncodeId()).to.throw(InvalidParameterError);
+    expect(() => glpi._validateAndEncodeId(null)).to.throw(InvalidParameterError);
+    expect(() => glpi._validateAndEncodeId('')).to.throw(InvalidParameterError);
+    expect(() => glpi._validateAndEncodeId(undefined)).to.throw(InvalidParameterError);
+  });
+
+  it('should throw InvalidParameterError for path traversal patterns', () => {
+    const glpi = new Glpi(config.userToken);
+    expect(() => glpi._validateAndEncodeId('../User/1')).to.throw(InvalidParameterError);
+    expect(() => glpi._validateAndEncodeId('1/../../User')).to.throw(InvalidParameterError);
+    expect(() => glpi._validateAndEncodeId('\\etc\\passwd')).to.throw(InvalidParameterError);
+    expect(() => glpi._validateAndEncodeId('..')).to.throw(InvalidParameterError);
+  });
+});
+
+describe('_sanitizeForLog()', () => {
+  it('should return non-object inputs unchanged', () => {
+    const glpi = new Glpi(config.userToken);
+    expect(glpi._sanitizeForLog(null)).to.be.null;
+    expect(glpi._sanitizeForLog(undefined)).to.be.undefined;
+    expect(glpi._sanitizeForLog('string')).to.equal('string');
+  });
+
+  it('should redact sensitive credentials and tokens in settings and headers', () => {
+    const glpi = new Glpi(config.userToken);
+    const input = {
+      user_token: 'secret_user_token',
+      auth: 'base64_secret_auth',
+      app_token: 'secret_app_token',
+      port: 80,
+      headers: {
+        'App-Token': 'secret_app',
+        'Session-Token': 'secret_session',
+        Authorization: 'Basic secret_auth',
+        'Content-Type': 'application/json',
+      },
+    };
+    const sanitized = glpi._sanitizeForLog(input);
+    expect(sanitized.user_token).to.equal('***REDACTED***');
+    expect(sanitized.auth).to.equal('***REDACTED***');
+    expect(sanitized.app_token).to.equal('***REDACTED***');
+    expect(sanitized.headers['App-Token']).to.equal('***REDACTED***');
+    expect(sanitized.headers['Session-Token']).to.equal('***REDACTED***');
+    expect(sanitized.headers.Authorization).to.equal('***REDACTED***');
+    expect(sanitized.headers['Content-Type']).to.equal('application/json');
+    // Ensure original object is not mutated
+    expect(input.user_token).to.equal('secret_user_token');
+    expect(input.headers['Session-Token']).to.equal('secret_session');
+  });
+
+  it('should handle headers object without sensitive headers', () => {
+    const glpi = new Glpi(config.userToken);
+    const input = {
+      headers: {
+        Accept: 'application/json',
+      },
+    };
+    const sanitized = glpi._sanitizeForLog(input);
+    expect(sanitized.headers.Accept).to.equal('application/json');
+  });
+});
+
+describe('Instance isolation of itemTypes', () => {
+  it('should isolate custom itemTypes between different Glpi instances', () => {
+    const glpi1 = new Glpi(config.userToken);
+    const glpi2 = new Glpi(config.userToken);
+
+    glpi1.addCustomItemTypes('IsolatedCustomType');
+    expect(glpi1._validateItemType('IsolatedCustomType')).to.be.true;
+    expect(() => glpi2._validateItemType('IsolatedCustomType')).to.throw(InvalidItemTypeError);
+  });
+
+  it('should initialize _itemTypes if not already present', () => {
+    const uninit = Object.create(Glpi.prototype);
+    expect(uninit._validateItemType('Ticket')).to.be.true;
+    uninit.addCustomItemTypes('CustomTypeFallback');
+    expect(uninit._itemTypes).to.include('CustomTypeFallback');
+    expect(uninit._validateItemType('CustomTypeFallback')).to.be.true;
+  });
+});
+
 
 describe('contructor()', () => {
   it('should throw InvalidAPIURLError', () => {
@@ -713,6 +805,15 @@ describe('Authenticated methods', () => {
         }
       });
 
+      it('should throw InvalidParameterError if id contains path traversal characters', async () => {
+        try {
+          await glpi.updateItems('Ticket', '../User/1', { name: 'test' });
+          expect.fail('Should have thrown');
+        } catch(err) {
+          expect(err).to.be.instanceOf(InvalidParameterError);
+        }
+      });
+
       it('should throw InvalidParameterError (data object with no id)', async () => {
         try {
           const data = { status : 6 };
@@ -882,6 +983,15 @@ describe('Authenticated methods', () => {
         try {
           const result = await glpi.deleteItems('Ticket');
           expect(result).to.be.undefined;
+        } catch(err) {
+          expect(err).to.be.instanceOf(InvalidParameterError);
+        }
+      });
+
+      it('should throw InvalidParameterError if id contains path traversal characters', async () => {
+        try {
+          await glpi.deleteItems('Ticket', '../User/1');
+          expect.fail('Should have thrown');
         } catch(err) {
           expect(err).to.be.instanceOf(InvalidParameterError);
         }
@@ -1667,6 +1777,15 @@ describe('Authenticated methods', () => {
         expect(result).to.have.property('code', expectedCode);
         expect(result).to.have.property('data').to.deep.equal(expectedBody);
       });
+
+      it('should throw InvalidParameterError if id contains path traversal characters', async () => {
+        try {
+          await glpi.getItem('Ticket', '../User/1');
+          expect.fail('Should have thrown');
+        } catch(err) {
+          expect(err).to.be.instanceOf(InvalidParameterError);
+        }
+      });
     });
 
     describe('getItems()', () => {
@@ -1967,6 +2086,15 @@ describe('Authenticated methods', () => {
             expect(err).to.be.instanceOf(MissingItemTypeError);
           }
         });
+
+        it('should throw InvalidParameterError if id contains path traversal characters', async () => {
+          try {
+            await glpi.getSubItems('Ticket', '../User/1', 'Log');
+            expect.fail('Should have thrown');
+          } catch(err) {
+            expect(err).to.be.instanceOf(InvalidParameterError);
+          }
+        });
       });
 
 
@@ -2103,6 +2231,81 @@ describe('Authenticated methods', () => {
           expect(result).to.have.property('data').to.deep.equal(expectedBody);
         });
 
+        it('should throw ServerError when HATEOAS link targets an untrusted external origin', async () => {
+          const evilItem = {
+            id: 1,
+            links: [
+              {
+                rel: 'Log',
+                href: 'http://attacker.com/steal/token',
+              },
+            ],
+          };
+          try {
+            await glpi.getSubItems(evilItem, 'Log');
+            expect.fail('Should have thrown');
+          } catch(err) {
+            expect(err).to.be.instanceOf(ServerError);
+            expect(err.message).to.equal('HATEOAS link targets an untrusted external origin');
+          }
+        });
+
+        it('should throw ServerError when HATEOAS link targets an invalid endpoint path', async () => {
+          const evilPathItem = {
+            id: 1,
+            links: [
+              {
+                rel: 'Log',
+                href: 'http://glpiapi.test/other_endpoint/Log',
+              },
+            ],
+          };
+          try {
+            await glpi.getSubItems(evilPathItem, 'Log');
+            expect.fail('Should have thrown');
+          } catch(err) {
+            expect(err).to.be.instanceOf(ServerError);
+            expect(err.message).to.equal('HATEOAS link targets an invalid endpoint path');
+          }
+        });
+
+        it('should handle HATEOAS link when apiurl ends with a slash and strip trailing slash from endpoint', async () => {
+          const slashConfig = deepClone(config.userToken);
+          slashConfig.apiurl = `${config.userToken.apiurl}/`;
+          const slashGlpi = new Glpi(slashConfig);
+          slashGlpi._session = sessionToken;
+
+          const slashItem = {
+            id: 1,
+            links: [
+              {
+                rel: 'Log',
+                href: `${config.userToken.apiurl}/Ticket/1/Log/`,
+              },
+            ],
+          };
+          const expectedCode = 200;
+          const expectedBody = [{ id: 1, message: 'log' }];
+          const query = {
+            expand_dropdowns : false,
+            get_hateoas      : true,
+            only_id          : false,
+            range            : '0-50',
+            sort             : 'id',
+            order            : 'DESC',
+          };
+          nock(config.userToken.apiurl)
+          .matchHeader('app-token', config.userToken.app_token)
+          .matchHeader('session-token', sessionToken)
+          .get('/Ticket/1/Log')
+          .query(query)
+          .reply(expectedCode, expectedBody);
+
+          const result = await slashGlpi.getSubItems(slashItem, 'Log');
+          expect(result).to.have.property('code', expectedCode);
+          expect(result).to.have.property('data').to.deep.equal(expectedBody);
+        });
+
         it('should throw MissingHATEOASError with ticket as object with no links', async () => {
           const requestedTicket = deepClone(itemTicketDefault);
           delete requestedTicket.links;
@@ -2198,6 +2401,81 @@ describe('Authenticated methods', () => {
         } catch(err) {
           expect(err).to.be.instanceOf(Error).with.property('name', 'InvalidParameterError');
         }
+      });
+
+      it('should throw InvalidParameterError if items is not an array', async () => {
+        try {
+          await glpi.getMultipleItems({ items: 'not-an-array' });
+          expect.fail('Should have thrown');
+        } catch(err) {
+          expect(err).to.be.instanceOf(InvalidParameterError);
+        }
+      });
+
+      it('should throw InvalidParameterError if an item in items is invalid or missing itemtype', async () => {
+        try {
+          await glpi.getMultipleItems({ items: [{ items_id: 1 }] });
+          expect.fail('Should have thrown');
+        } catch(err) {
+          expect(err).to.be.instanceOf(InvalidParameterError);
+        }
+        try {
+          await glpi.getMultipleItems({ items: [null] });
+          expect.fail('Should have thrown');
+        } catch(err) {
+          expect(err).to.be.instanceOf(InvalidParameterError);
+        }
+      });
+
+      it('should throw InvalidItemTypeError if an item has an unknown itemtype', async () => {
+        try {
+          await glpi.getMultipleItems({ items: [{ itemtype: 'UnknownType', items_id: 1 }] });
+          expect.fail('Should have thrown');
+        } catch(err) {
+          expect(err).to.be.instanceOf(InvalidItemTypeError);
+        }
+      });
+
+      it('should encode GLPI 11 plugin classes in itemtype for getMultipleItems', async () => {
+        const requestedItems = [{
+          itemtype: 'GlpiPlugin\\Shipping\\Client',
+          items_id: 10,
+        }];
+        const expectedItemsQuery = [{
+          itemtype: 'GlpiPlugin%5CShipping%5CClient',
+          items_id: 10,
+        }];
+        const expectedCode = 200;
+        const expectedBody = [{ id: 10, name: 'Client 10' }];
+        const query = {
+          items             : expectedItemsQuery,
+          expand_dropdowns  : false,
+          get_hateoas       : true,
+          get_sha1          : false,
+          with_devices      : false,
+          with_disks        : false,
+          with_softwares    : false,
+          with_connections  : false,
+          with_networkports : false,
+          with_infocoms     : false,
+          with_contracts    : false,
+          with_documents    : false,
+          with_tickets      : false,
+          with_problems     : false,
+          with_changes      : false,
+          with_notes        : false,
+          with_logs         : false,
+        };
+        nock(config.userToken.apiurl)
+        .matchHeader('app-token', config.userToken.app_token)
+        .matchHeader('session-token', sessionToken)
+        .get('/getMultipleItems')
+        .query(query)
+        .reply(expectedCode, expectedBody);
+
+        const result = await glpi.getMultipleItems({ items: requestedItems });
+        expect(result).to.have.property('code', expectedCode);
+        expect(result).to.have.property('data').to.deep.equal(expectedBody);
       });
 
       it('should return a ticket and a user', async () => {

@@ -93,9 +93,46 @@ class Glpi {
       port       : settings.port,
       apiurl,
     };
+    this._itemTypes = [...itemTypes];
     this._session = '';
 
-    log('> SETTINGS :', this._settings);
+    log('> SETTINGS :', this._sanitizeForLog(this._settings));
+  }
+
+  /**
+   * Sanitize an object before logging to avoid exposing sensitive tokens or credentials
+   *
+   * @param {Object} obj
+   * @returns {Object}
+   * @private
+   */
+  _sanitizeForLog(obj) {
+    if (!obj || typeof obj !== 'object') {
+      return obj;
+    }
+    const clone = { ...obj };
+    if (clone.user_token) {
+      clone.user_token = '***REDACTED***';
+    }
+    if (clone.auth) {
+      clone.auth = '***REDACTED***';
+    }
+    if (clone.app_token) {
+      clone.app_token = '***REDACTED***';
+    }
+    if (clone.headers) {
+      clone.headers = { ...clone.headers };
+      if (clone.headers['App-Token']) {
+        clone.headers['App-Token'] = '***REDACTED***';
+      }
+      if (clone.headers['Session-Token']) {
+        clone.headers['Session-Token'] = '***REDACTED***';
+      }
+      if (clone.headers.Authorization) {
+        clone.headers.Authorization = '***REDACTED***';
+      }
+    }
+    return clone;
   }
 
   /**
@@ -134,7 +171,7 @@ class Glpi {
       throw new InvalidHTTPMethodError(`Invalid method: ${method}`);
     }
 
-    log('> OPTIONS IN :', options);
+    log('> OPTIONS IN :', this._sanitizeForLog(options));
 
     let headers = {
       'User-Agent'    : userAgent,
@@ -169,7 +206,7 @@ class Glpi {
       req = { ...req, ...options };
     }
 
-    log('> REQUEST OPTIONS :', req);
+    log('> REQUEST OPTIONS :', this._sanitizeForLog(req));
 
     return request(req)
     .then((incomingMessage) => {
@@ -200,12 +237,24 @@ class Glpi {
     return itemType.replace(/%5c/gi, '\\').replace(/\\/g, '%5C');
   }
 
+  _validateAndEncodeId(id) {
+    if (id === null || id === undefined || id === '') {
+      throw new InvalidParameterError('Missing or empty id');
+    }
+    const strId = String(id);
+    if (strId.includes('/') || strId.includes('\\') || strId.includes('..')) {
+      throw new InvalidParameterError(`Invalid id '${id}'`);
+    }
+    return encodeURIComponent(strId);
+  }
+
   _validateItemType(itemType) {
     if (!itemType) {
       throw new MissingItemTypeError('Missing item type');
     }
 
-    if (itemTypes.indexOf(itemType) !== -1) {
+    const availableTypes = this._itemTypes || itemTypes;
+    if (availableTypes.indexOf(itemType) !== -1) {
       return true;
     }
 
@@ -255,8 +304,11 @@ class Glpi {
     if (!_.isArray(customItemTypes)) {
       customItemTypes = [customItemTypes];
     }
+    if (!this._itemTypes) {
+      this._itemTypes = [...itemTypes];
+    }
     customItemTypes.forEach((customItemType) => {
-      itemTypes.push(customItemType);
+      this._itemTypes.push(customItemType);
     });
   }
 
@@ -422,6 +474,7 @@ class Glpi {
    */
   getItem(itemType, id, opts = {}) {
     this._validateItemType(itemType);
+    const encodedId = this._validateAndEncodeId(id);
 
     const options = {
       expand_dropdowns  : false,
@@ -443,7 +496,7 @@ class Glpi {
     };
 
     const query = Object.assign({}, options, opts);
-    const endpoint = `/${this._encodeItemType(itemType)}/${id}`;
+    const endpoint = `/${this._encodeItemType(itemType)}/${encodedId}`;
 
     return this._request(HTTP_GET, endpoint, { query });
   }
@@ -528,7 +581,18 @@ class Glpi {
 
       const url = new URL(link.href);
 
-      endpoint = url.href.replace(this._settings.apiurl, '');
+      if (url.origin !== this._settings.apiurl.origin) {
+        throw new ServerError('HATEOAS link targets an untrusted external origin');
+      }
+
+      if (!url.pathname.startsWith(this._settings.apiurl.pathname)) {
+        throw new ServerError('HATEOAS link targets an invalid endpoint path');
+      }
+
+      endpoint = url.pathname.slice(this._settings.apiurl.pathname.length) + (url.search || '');
+      if (!endpoint.startsWith('/')) {
+        endpoint = `/${endpoint}`;
+      }
       if (endpoint[endpoint.length - 1] === '/') {
         endpoint = endpoint.slice(0, -1);
       }
@@ -537,8 +601,9 @@ class Glpi {
     else {
       this._validateItemType(itemType);
       this._validateItemType(subItemType);
+      const encodedId = this._validateAndEncodeId(id);
 
-      endpoint = `/${this._encodeItemType(itemType)}/${id}/${this._encodeItemType(subItemType)}`;
+      endpoint = `/${this._encodeItemType(itemType)}/${encodedId}/${this._encodeItemType(subItemType)}`;
     }
 
     const query = Object.assign({}, options, opts);
@@ -594,8 +659,17 @@ class Glpi {
 
     const query = Object.assign({}, options, opts);
 
-    if(opts.items) {
-      query.items = JSON.parse(JSON.stringify(opts.items));
+    if (opts.items && _.isArray(opts.items)) {
+      query.items = opts.items.map((item) => {
+        if (!item || !item.itemtype) {
+          throw new InvalidParameterError('Invalid item in items array');
+        }
+        this._validateItemType(item.itemtype);
+        return {
+          ...item,
+          itemtype: this._encodeItemType(item.itemtype),
+        };
+      });
     } else {
       throw new InvalidParameterError('Invalid parameter');
     }
@@ -731,7 +805,7 @@ class Glpi {
 
     let endpoint = `/${this._encodeItemType(itemType)}`;
     if (id) {
-      endpoint += `/${id}`;
+      endpoint += `/${this._validateAndEncodeId(id)}`;
     }
 
     const body = { input };
@@ -780,7 +854,7 @@ class Glpi {
     const body = { input };
 
     let endpoint = `/${this._encodeItemType(itemType)}`;
-    if (id) endpoint += `/${id}`;
+    if (id) endpoint += `/${this._validateAndEncodeId(id)}`;
 
     return this._request(HTTP_DELETE, endpoint, { body, query });
   }
