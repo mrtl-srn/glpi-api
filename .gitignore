@@ -3,3 +3,8 @@ coverage
 coverage.lcov
 yarn-error.log
 tmp
+.agents
+dist
+.superpowers
+.nyc_output
+.env

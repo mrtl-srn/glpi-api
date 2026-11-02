@@ -1,0 +1,33 @@
+{
+	"name": "glpi-api-devcontainer",
+	"image": "mcr.microsoft.com/devcontainers/typescript-node:5-24-trixie",
+	"customizations": {
+		"settings": {
+			"terminal.integrated.profiles.linux": {
+				"bash": {
+					"path": "/bin/bash"
+				}
+			}
+		},
+		"vscode": {
+			"extensions": [
+				"dbaeumer.vscode-eslint",
+				"esbenp.prettier-vscode",
+				"christian-kohler.path-intellisense",
+				"sleistner.vscode-fileutils",
+				"michelemelluso.gitignore"
+			]
+		}
+	},
+	"remoteUser": "node",
+	"postCreateCommand": "curl -fsSL https://antigravity.google/cli/install.sh | bash",
+	"mounts": [
+		"source=${localEnv:HOME}/.agents/skills,target=${containerWorkspaceFolder}/.agents/skills,type=bind,consistency=cached",
+		"source=${localEnv:HOME}/.gemini,target=/home/node/.gemini,type=bind,consistency=cached",
+		"source=${localEnv:HOME}/.config,target=/home/node/.config,type=bind,consistency=cached",
+		"source=${localEnv:HOME}/.gitconfig,target=/home/node/.gitconfig,type=bind,consistency=cached"
+	],
+	"remoteEnv": {
+		"PATH": "/home/node/.local/bin:${containerEnv:PATH}"
+	}
+}
