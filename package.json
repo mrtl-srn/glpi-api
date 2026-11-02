@@ -3,6 +3,12 @@
   "version": "1.7.0",
   "description": "Node module for GLPI REST API",
   "main": "glpi.js",
+  "files": [
+    "glpi.js",
+    "errors",
+    "itemTypes.json",
+    "CHANGELOG.md"
+  ],
   "author": "Martial Séron <martial.seron@alturing.eu>",
   "license": "MIT",
   "scripts": {
